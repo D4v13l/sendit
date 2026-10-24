@@ -8,3 +8,12 @@ dist/
 .dev.vars*
 *.tsbuildinfo
 .DS_Store
+
+apps/good-outside/data/curated.json
+apps/good-outside/data/openbeta.json
+apps/good-outside/data/openskidata.json
+apps/good-outside/data/ridb.json
+
+# Large provider snapshots belong in R2, never Git.
+apps/good-outside/data/*.json.gz
+apps/good-outside/data/.download-*/

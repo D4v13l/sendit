@@ -1,0 +1,21 @@
+import assert from 'node:assert/strict';
+const lib=await import('./public/trips.mjs').catch(()=>({}));
+assert.equal(typeof lib.nearTermStart,'function','Relative near-term dates must follow the destination timezone');
+const now=new Date('2026-10-24T01:00:00Z');
+assert.equal(lib.nearTermStart('today','America/Los_Angeles',now),'2026-10-23');assert.equal(lib.nearTermStart('today','Australia/Sydney',now),'2026-10-24');assert.equal(lib.nearTermStart('tomorrow','America/New_York',now),'2026-10-24');assert.equal(lib.nearTermStart('weekend','America/New_York',now),'2026-10-24');
+const points=lib.weatherGrid([39.74,-105]);assert.equal(points.length,9);for(const p of points){const {distanceKm}=await import('./public/catalog.mjs');assert.ok(distanceKm([39.74,-105],p.point)<=16.1)}
+assert.equal(new Set(points.map(p=>p.id)).size,9);
+const bookmark=lib.makeBookmark({origin:{lat:42.36,lon:-71.06,name:'Boston'},activity:'Hiking',start:'2026-10-24',days:2,camping:'none',dateMode:'tomorrow'},'monadnock');assert.equal(bookmark.trip.dateMode,'custom');assert.equal(bookmark.regionId,'monadnock');assert.equal(bookmark.trip.start,'2026-10-24');
+const again=lib.makeBookmark(bookmark.trip,'monadnock');assert.equal(bookmark.id,again.id);assert.equal(lib.validBookmark(bookmark),true);assert.equal(lib.validBookmark({trip:{origin:{lat:NaN}}}),false);
+console.log('PASS: relative destination dates, ten-mile grid and stable bookmark snapshots');
+const {topPicks}=lib;const daily={time:['2026-10-24'],temperature_2m_max:[18],temperature_2m_min:[10],precipitation_sum:[0],precipitation_probability_max:[10],wind_gusts_10m_max:[10],snowfall_sum:[0]},forecast={daily,hourly:{time:[],temperature_2m:[]}};
+const areas=[{id:'one',activities:['Hiking','Climbing','Backcountry skiing']},{id:'two',activities:['Hiking']},{id:'missing',activities:['Hiking']}];
+const top=topPicks(areas,{one:forecast,two:forecast},{one:3600,two:8000,missing:600},{start:'2026-10-24',days:1,camping:'none',activity:'Climbing'});
+assert.equal(top.length,2);assert.equal(top[0].activity,'Climbing');assert.equal(new Set(top.map(p=>p.region.id)).size,2);assert.ok(top.every(p=>p.assessment.level!=='unknown'&&p.activity!=='Backcountry skiing'));
+assert.equal(lib.campsiteSearch([39.739,-104.99]),'https://freecampsites.net/#!(39.73900,+-104.99000)');
+console.log('PASS: top picks use distinct areas, complete forecasts, selected-activity tie-breaks and verified campsite search syntax');
+const bikingForecast={daily:{...daily,precipitation_sum:[11]},hourly:{time:[],temperature_2m:[]}};
+const {evaluate}=await import('./public/engine.mjs');
+assert.equal(evaluate(bikingForecast,'2026-10-24',1,'Biking','none').label,'Poor');
+assert.equal(evaluate(bikingForecast,'2026-10-24',1,'Hiking','none').label,'Passable');
+assert.ok(lib.validBookmark(lib.makeBookmark({...bookmark.trip,activity:'Biking'})));

@@ -1,0 +1,24 @@
+{
+  "name": "sendit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "test:client": "npm --prefix packages/adventure-projects-client test",
+    "demo": "npm --prefix packages/adventure-projects-client run demo",
+    "demo:offline": "npm --prefix packages/adventure-projects-client run demo:offline",
+    "data:restore": "node scripts/restore-data.mjs",
+    "test:planner": "node scripts/test-planner.mjs",
+    "sync:client": "node scripts/sync-client.mjs",
+    "check:client": "node scripts/sync-client.mjs --check",
+    "build:planner": "npm --prefix apps/good-outside run build",
+    "build:explorer": "npm --prefix apps/trail-desk run build",
+    "data:download": "node scripts/download-data.mjs",
+    "data:setup": "node scripts/setup-data.mjs",
+    "data:upload": "node scripts/upload-snapshots.mjs",
+    "test:snapshots": "node --test tests/snapshots.test.mjs"
+  }
+}

@@ -1,0 +1,17 @@
+import {dates,evaluate,activities} from './engine.mjs';
+export function destinationToday(timezone,now=new Date()){
+ let parts;try{parts=new Intl.DateTimeFormat('en-US',{timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now)}catch{parts=new Intl.DateTimeFormat('en-US',{year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now)}
+ const get=type=>parts.find(p=>p.type===type).value;return `${get('year')}-${get('month')}-${get('day')}`;
+}
+export function nearTermStart(mode,timezone,now=new Date()){
+ const today=destinationToday(timezone,now);if(mode==='tomorrow')return dates(today,2)[1];if(mode==='weekend'){const day=new Date(today+'T12:00:00').getDay(),offset=day===0||day===6?0:6-day;return dates(today,offset+1)[offset]}return today;
+}
+export function weatherGrid(center){const earth=6371,angle=16.09344/earth,toRad=x=>x*Math.PI/180,toDeg=x=>x*180/Math.PI;const lat=toRad(center[0]),lon=toRad(center[1]);const points=[center,...Array.from({length:8},(_,i)=>{const bearing=toRad(i*45),phi=Math.asin(Math.sin(lat)*Math.cos(angle)+Math.cos(lat)*Math.sin(angle)*Math.cos(bearing)),lambda=lon+Math.atan2(Math.sin(bearing)*Math.sin(angle)*Math.cos(lat),Math.cos(angle)-Math.sin(lat)*Math.sin(phi));return [toDeg(phi),(toDeg(lambda)+540)%360-180]})];return points.map((p,i)=>{const point=p.map(x=>+x.toFixed(4));return {id:'sample:'+point.join(','),name:i===0?'Center weather sample':['North','Northeast','East','Southeast','South','Southwest','West','Northwest'][i-1]+' weather sample',point,sampleOnly:true}})}
+export function makeBookmark(trip,regionId=null,center=null){const copy={origin:{...trip.origin},activity:trip.activity,start:trip.start,days:trip.days,camping:trip.camping,dateMode:'custom'};const id=JSON.stringify([copy.origin.lat,copy.origin.lon,copy.activity,copy.start,copy.days,copy.camping,regionId,center]);return {id,trip:copy,regionId,center,savedAt:new Date().toISOString()}}
+export function validBookmark(b){const t=b?.trip,o=t?.origin;return !!(typeof b?.id==='string'&&o&&Number.isFinite(o.lat)&&Number.isFinite(o.lon)&&Math.abs(o.lat)<=90&&Math.abs(o.lon)<=180&&activities.includes(t.activity)&&/^\d{4}-\d{2}-\d{2}$/.test(t.start)&&!Number.isNaN(Date.parse(t.start))&&Number.isInteger(t.days)&&t.days>=1&&t.days<=7&&['none','car','backcountry'].includes(t.camping)&&(!b.center||(Array.isArray(b.center)&&b.center.length===2&&b.center.every(Number.isFinite)&&Math.abs(b.center[0])<=90&&Math.abs(b.center[1])<=180)))}
+export function topPicks(regions,weather,routes,trip){const score={excellent:0,passable:1,poor:2};return regions.flatMap(r=>{
+ const seconds=routes[r.id];if(!Number.isFinite(seconds)||seconds<0||seconds>14400||(trip.camping!=='none'&&r.noCamping)||(trip.camping==='car'&&r.noCarCamping)||(trip.camping==='backcountry'&&r.noBackcountry))return [];
+ const options=r.activities.filter(a=>a!=='Backcountry skiing'||trip.activity===a).map(activity=>({region:r,activity,seconds,assessment:evaluate(weather[r.id],trip.start,trip.days,activity,trip.camping)})).filter(x=>x.assessment.level!=='unknown');
+ options.sort((a,b)=>score[a.assessment.level]-score[b.assessment.level]||(a.activity===trip.activity?-1:b.activity===trip.activity?1:0));return options.length?[options[0]]:[];
+}).sort((a,b)=>score[a.assessment.level]-score[b.assessment.level]||a.seconds-b.seconds).slice(0,3)}
+export function campsiteSearch(point){return `https://freecampsites.net/#!(${point[0].toFixed(5)},+${point[1].toFixed(5)})`}

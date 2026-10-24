@@ -1,1 +1,1 @@
-Read AGENTS.md, README.md, AI-HANDOFF.md and PROJECT-CONTEXT.md before working.
+Read AGENTS.md and docs/AI-HANDOFF.md before working.

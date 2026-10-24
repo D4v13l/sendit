@@ -1,0 +1,4 @@
+export function preferredMapLanguage(languages=[]){for(const language of languages){try{return Intl.getCanonicalLocales(language)[0]}catch{}}return 'en'}
+export function localizeMapStyle(style,language){const locale=preferredMapLanguage([language]),base=locale.split('-')[0],names=[`name:${locale}`,`name:${base}`];if(base==='zh')names.splice(1,0,/TW|HK|Hant/.test(locale)?'name:zh-Hant':'name:zh-Hans');
+ // Use the requested translation first, then a transliterated label. Do not append native bilingual text.
+ const fields=[...new Set([...names,'name:latin','name_en'])];const result=JSON.parse(JSON.stringify(style));for(const layer of result.layers||[]){const field=layer.layout?.['text-field'];if(field!==undefined&&/name/.test(JSON.stringify(field)))layer.layout['text-field']=['coalesce',...fields.map(name=>['get',name]),'']}return result}

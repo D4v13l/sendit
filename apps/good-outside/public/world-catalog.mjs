@@ -1,0 +1,28 @@
+const entries=[
+['mount-tam','Mount Tamalpais','Pantoll vicinity',[37.904,-122.604],'https://www.parks.ca.gov/?page_id=471','San Francisco Bay & Sierra foothills','US'],
+['point-reyes','Point Reyes','Bear Valley Visitor Center',[38.041,-122.8],'https://www.nps.gov/pore/planyourvisit/index.htm','San Francisco Bay & Sierra foothills','US','https://www.nps.gov/pore/planyourvisit/camping.htm'],
+['auburn','Auburn State Recreation Area','American River confluence',[38.916,-121.037],'https://www.parks.ca.gov/?page_id=502','San Francisco Bay & Sierra foothills','US'],
+['santa-monica','Santa Monica Mountains','King Gillette Ranch',[34.103,-118.707],'https://www.nps.gov/samo/planyourvisit/index.htm','Southern California','US'],
+['san-gabriel','San Gabriel Mountains','Chilao Visitor Center vicinity',[34.324,-118.009],'https://www.fs.usda.gov/r05/angeles/recreation','Southern California','US','https://www.fs.usda.gov/r05/angeles/recreation/camping-cabins'],
+['joshua-tree','Joshua Tree','west entrance',[34.091,-116.258],'https://www.nps.gov/jotr/planyourvisit/index.htm','Southern California','US','https://www.nps.gov/jotr/planyourvisit/campgrounds.htm'],
+['mount-hood','Mount Hood','Government Camp',[45.304,-121.754],'https://www.fs.usda.gov/r06/mthood/recreation','Northwest Oregon','US','https://www.fs.usda.gov/r06/mthood/recreation/camping-cabins'],
+['columbia-gorge','Columbia River Gorge','Cascade Locks',[45.669,-121.891],'https://www.fs.usda.gov/r06/columbiarivergorge/recreation','Northwest Oregon','US','https://www.fs.usda.gov/r06/columbiarivergorge/recreation/camping-cabins'],
+['silver-falls','Silver Falls','South Falls day-use area',[44.877,-122.654],'https://stateparks.oregon.gov/index.cfm?do=park.profile&parkId=151','Northwest Oregon','US'],
+['antelope-island','Antelope Island','visitor center',[41.058,-112.243],'https://stateparks.utah.gov/parks/antelope-island/','Salt Lake City & Wasatch','US'],
+['central-wasatch','Central Wasatch','Big Cottonwood Canyon mouth',[40.620,-111.788],'https://www.fs.usda.gov/r04/uinta-wasatch-cache/recreation','Salt Lake City & Wasatch','US','https://www.fs.usda.gov/r04/uinta-wasatch-cache/recreation/camping-cabins'],
+['harriman','Harriman','Sloatsburg',[41.155,-74.193],'https://parks.ny.gov/visit/state-parks/harriman-state-park','New York & Catskills','US'],
+['catskills','Catskills','Catskills Visitor Center vicinity',[42.030,-74.269],'https://dec.ny.gov/nature/forests-trees/forest-preserve/welcome-to-the-catskills','New York & Catskills','US','https://dec.ny.gov/things-to-do/hiking/catskill-backcountry-information'],
+['pisgah','Pisgah Forest','Pisgah Ranger Station',[35.285,-82.728],'https://www.fs.usda.gov/r08/northcarolina/recreation/pisgah-national-forest','Southern Appalachians','US','https://www.fs.usda.gov/r08/northcarolina/recreation/camping-cabins'],
+['smokies','Great Smoky Mountains','Oconaluftee Visitor Center',[35.514,-83.307],'https://www.nps.gov/grsm/planyourvisit/index.htm','Southern Appalachians','US'],
+['mckinney','McKinney Falls','park entrance',[30.18,-97.722],'https://tpwd.texas.gov/state-parks/mckinney-falls','Austin & Hill Country','US'],
+['pedernales','Pedernales Falls','park headquarters',[30.308,-98.257],'https://tpwd.texas.gov/state-parks/pedernales-falls','Austin & Hill Country','US'],
+['afton','Afton','visitor center',[44.853,-92.775],'https://www.dnr.state.mn.us/state-parks/park.html?id=spk00100','Minneapolis & St. Croix','US'],
+['william-obrien',"William O’Brien",'park entrance',[45.222,-92.765],'https://www.dnr.state.mn.us/state-parks/park.html?id=spk00283','Minneapolis & St. Croix','US'],
+['surrey-hills','Surrey Hills','Dorking',[51.232,-0.333],'https://surreyhills.org/','Southeast England','GB'],
+['south-downs','South Downs','Petersfield',[51.004,-0.939],'https://www.southdowns.gov.uk/walking/','Southeast England','GB'],
+['ammergau','Ammergau Alps','Oberammergau',[47.597,11.064],'https://www.naturpark-ammergauer-alpen.de/naturvertraeglich-unterwegs/dein-freiraum-mein-lebensraum','Bavaria','DE'],
+['bavarian-forest','Bavarian Forest National Park','Neuschönau',[48.884,13.476],'https://www.nationalpark-bayerischer-wald.bayern.de/english/','Bavaria','DE'],
+['blue-mountains','Blue Mountains','Katoomba',[-33.714,150.311],'https://www.nationalparks.nsw.gov.au/visit-a-park/parks/blue-mountains-national-park','Sydney & Blue Mountains','AU'],
+['royal','Royal National Park','Audley',[-34.075,151.057],'https://www.nationalparks.nsw.gov.au/visit-a-park/parks/royal-national-park','Sydney & Blue Mountains','AU']
+];
+export const worldRegions=entries.map(([id,name,gateway,road,url,coverage,country,camp])=>({id,name,gateway,road,point:road,sample:gateway+' gateway (not mountain summit)',activities:['Hiking'],url,coverage,country,camp:camp||url,gatewaySample:true,campNote:'Camping permission, designated-site rules, seasonal access and permits must be checked with the linked manager. No current opening, legal overnight location or campsite availability is confirmed.',...(id==='point-reyes'?{noCarCamping:true,campNote:'No car or RV camping inside the seashore. Designated hike-in and boat-in camps require advance permits; availability is unknown.'}:{})}));

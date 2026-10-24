@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+const module=await import('./public/services.mjs').catch(()=>({}));
+assert.equal(typeof module.createRegionClient,'function','Origin-isolated region requests must exist');
+let calls=[];
+const transport=async url=>{calls.push(new URL(url));if(url.includes('open-meteo'))return {daily:{time:['2026-10-24']},timezone:'America/New_York'};const u=new URL(url),isBoston=u.pathname.includes('-71.06,42.36');return {code:'Ok',durations:[[0,isBoston?3600:9000]],destinations:[{distance:0},{distance:2}]}};
+const client=module.createRegionClient(transport),area={id:'test',point:[42.2,-71.1],road:[42.2,-71.1]};
+const weather=await client.weather([area]);assert.equal(calls[0].searchParams.get('timezone'),'auto','Weather uses destination timezones');assert.equal(weather.test.timezone,'America/New_York');
+const boston=await client.routes({lat:42.36,lon:-71.06},[area]);const denver=await client.routes({lat:39.739,lon:-104.99},[area]);assert.equal(boston.test,3600);assert.equal(denver.test,9000);assert.equal((await client.routes({lat:42.36,lon:-71.06},[area])).test,3600,'Changing origins cannot reuse another origin’s routes');
+const noSnap=module.createRegionClient(async()=>({code:'Ok',durations:[[0,3600]],destinations:[{distance:0},{distance:50000}]}));assert.equal((await noSnap.routes({lat:42,lon:-71},[area])).test,null,'Do not route to a road far from the selected area');
+const missing=module.createRegionClient(async()=>({code:'Ok',durations:[[0,null]],destinations:[{distance:0},{distance:0}]}));assert.equal((await missing.routes({lat:42,lon:-71},[area])).test,null,'Missing duration must not turn into zero');
+assert.deepEqual(await client.weather([]),{});assert.deepEqual(await client.routes({lat:0,lon:0},[]),{});
+console.log('PASS: timezone, origin-specific caches, route snapping, missing durations and empty requests');
+let attempts=0;
+const transient=module.createRegionClient(async()=>{if(++attempts===1)throw new TypeError('Network interrupted');return {code:'Ok',durations:[[0,3600]],sources:[{distance:0}],destinations:[{distance:0},{distance:0}]}});
+assert.equal((await transient.routes({lat:42,lon:-71},[area])).test,3600,'A transient routing outage gets one bounded retry');

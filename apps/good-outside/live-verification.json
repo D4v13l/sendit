@@ -1,0 +1,313 @@
+{
+  "at": "2026-10-24T01:06:52.641Z",
+  "report": [
+    {
+      "city": "Denver",
+      "origin": {
+        "lat": 39.73915,
+        "lon": -104.9847,
+        "name": "Denver"
+      },
+      "nearby": 8,
+      "weatherError": null,
+      "routeError": null,
+      "results": [
+        {
+          "name": "Eldorado Canyon",
+          "seconds": 2870,
+          "tier": "near",
+          "timezone": "America/Denver",
+          "rank": "Passable"
+        },
+        {
+          "name": "Golden Gate Canyon",
+          "seconds": 3102.3,
+          "tier": "near",
+          "timezone": "America/Denver",
+          "rank": "Poor"
+        },
+        {
+          "name": "Buffalo Creek",
+          "seconds": 4683.1,
+          "tier": "near",
+          "timezone": "America/Denver",
+          "rank": "Passable"
+        },
+        {
+          "name": "Indian Peaks",
+          "seconds": 4251.3,
+          "tier": "near",
+          "timezone": "America/Denver",
+          "rank": "Poor"
+        },
+        {
+          "name": "Rocky Mountain National Park",
+          "seconds": 5796.4,
+          "tier": "near",
+          "timezone": "America/Denver",
+          "rank": "Poor"
+        },
+        {
+          "name": "Summit County high country",
+          "seconds": 5658.4,
+          "tier": "near",
+          "timezone": "America/Denver",
+          "rank": "Passable"
+        },
+        {
+          "name": "Collegiate Peaks",
+          "seconds": 9711.3,
+          "tier": "far",
+          "timezone": "America/Denver",
+          "rank": "Poor"
+        },
+        {
+          "name": "Snowy Range",
+          "seconds": 12203.1,
+          "tier": "far",
+          "timezone": "America/Denver",
+          "rank": "Poor"
+        }
+      ]
+    },
+    {
+      "city": "Boston",
+      "origin": {
+        "lat": 42.35843,
+        "lon": -71.05977,
+        "name": "Boston"
+      },
+      "nearby": 8,
+      "weatherError": null,
+      "routeError": null,
+      "results": [
+        {
+          "name": "Middlesex Fells",
+          "seconds": 906.5,
+          "tier": "near",
+          "timezone": "America/New_York",
+          "rank": "Excellent"
+        },
+        {
+          "name": "Blue Hills Reservation",
+          "seconds": 1366.8,
+          "tier": "near",
+          "timezone": "America/New_York",
+          "rank": "Excellent"
+        },
+        {
+          "name": "Harold Parker State Forest",
+          "seconds": 2062.8,
+          "tier": "near",
+          "timezone": "America/New_York",
+          "rank": "Excellent"
+        },
+        {
+          "name": "Monadnock",
+          "seconds": 7330.1,
+          "tier": "far",
+          "timezone": "America/New_York",
+          "rank": "Excellent"
+        },
+        {
+          "name": "Saco & eastern White Mountains",
+          "seconds": 11603.5,
+          "tier": "far",
+          "timezone": "America/New_York",
+          "rank": "Excellent"
+        },
+        {
+          "name": "Western White Mountains",
+          "seconds": 9230.7,
+          "tier": "far",
+          "timezone": "America/New_York",
+          "rank": "Excellent"
+        },
+        {
+          "name": "Catskills",
+          "seconds": 15820.3,
+          "tier": "outside",
+          "timezone": "America/New_York",
+          "rank": "Excellent"
+        },
+        {
+          "name": "Harriman",
+          "seconds": 16246.7,
+          "tier": "outside",
+          "timezone": "America/New_York",
+          "rank": "Excellent"
+        }
+      ]
+    },
+    {
+      "city": "Seattle",
+      "origin": {
+        "lat": 47.60621,
+        "lon": -122.33207,
+        "name": "Seattle"
+      },
+      "nearby": 13,
+      "weatherError": null,
+      "routeError": null,
+      "results": [
+        {
+          "name": "Snoqualmie Pass",
+          "seconds": 3863.8,
+          "tier": "near",
+          "timezone": "America/Los_Angeles",
+          "rank": "Excellent"
+        },
+        {
+          "name": "Southeast Olympics",
+          "seconds": 9792.2,
+          "tier": "far",
+          "timezone": "America/Los_Angeles",
+          "rank": "Poor"
+        },
+        {
+          "name": "Mountain Loop",
+          "seconds": 6162.2,
+          "tier": "near",
+          "timezone": "America/Los_Angeles",
+          "rank": "Excellent"
+        },
+        {
+          "name": "Capitol Forest",
+          "seconds": 5699.8,
+          "tier": "near",
+          "timezone": "America/Los_Angeles",
+          "rank": "Passable"
+        },
+        {
+          "name": "Skykomish & Stevens Pass",
+          "seconds": 6947.2,
+          "tier": "near",
+          "timezone": "America/Los_Angeles",
+          "rank": "Passable"
+        },
+        {
+          "name": "Mount Rainier southwest",
+          "seconds": 8626.8,
+          "tier": "far",
+          "timezone": "America/Los_Angeles",
+          "rank": "Passable"
+        },
+        {
+          "name": "Upper Yakima & Cle Elum",
+          "seconds": 5872.2,
+          "tier": "near",
+          "timezone": "America/Los_Angeles",
+          "rank": "Passable"
+        },
+        {
+          "name": "Teanaway Community Forest",
+          "seconds": 7173.1,
+          "tier": "near",
+          "timezone": "America/Los_Angeles",
+          "rank": "Excellent"
+        },
+        {
+          "name": "Wenatchee River & Icicle",
+          "seconds": 9752.9,
+          "tier": "far",
+          "timezone": "America/Los_Angeles",
+          "rank": "Excellent"
+        },
+        {
+          "name": "Mount Baker high country",
+          "seconds": 11421.5,
+          "tier": "far",
+          "timezone": "America/Los_Angeles",
+          "rank": "Passable"
+        },
+        {
+          "name": "Columbia River Gorge",
+          "seconds": 14773.7,
+          "tier": "outside",
+          "timezone": "America/Los_Angeles",
+          "rank": "Excellent"
+        },
+        {
+          "name": "Mount Hood",
+          "seconds": 16630.9,
+          "tier": "outside",
+          "timezone": "America/Los_Angeles",
+          "rank": "Excellent"
+        },
+        {
+          "name": "Silver Falls",
+          "seconds": 17316.7,
+          "tier": "outside",
+          "timezone": "America/Los_Angeles",
+          "rank": "Passable"
+        }
+      ]
+    },
+    {
+      "city": "London",
+      "origin": {
+        "lat": 51.50853,
+        "lon": -0.12574,
+        "name": "London"
+      },
+      "nearby": 2,
+      "weatherError": null,
+      "routeError": null,
+      "results": [
+        {
+          "name": "Surrey Hills",
+          "seconds": 3675.2,
+          "tier": "near",
+          "timezone": "Europe/London",
+          "rank": "Poor"
+        },
+        {
+          "name": "South Downs",
+          "seconds": 5216.7,
+          "tier": "near",
+          "timezone": "Europe/London",
+          "rank": "Poor"
+        }
+      ]
+    },
+    {
+      "city": "Sydney",
+      "origin": {
+        "lat": -33.86785,
+        "lon": 151.20732,
+        "name": "Sydney"
+      },
+      "nearby": 2,
+      "weatherError": null,
+      "routeError": null,
+      "results": [
+        {
+          "name": "Royal National Park",
+          "seconds": 2485.6,
+          "tier": "near",
+          "timezone": "Australia/Sydney",
+          "rank": "Passable"
+        },
+        {
+          "name": "Blue Mountains",
+          "seconds": 5695,
+          "tier": "near",
+          "timezone": "Australia/Sydney",
+          "rank": "Poor"
+        }
+      ]
+    },
+    {
+      "city": "Tokyo",
+      "origin": {
+        "lat": 35.6895,
+        "lon": 139.69171,
+        "name": "Tokyo"
+      },
+      "nearby": 0,
+      "weatherError": null,
+      "routeError": null,
+      "results": []
+    }
+  ]
+}

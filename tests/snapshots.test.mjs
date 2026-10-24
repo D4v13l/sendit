@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {gzipSync} from 'node:zlib';
+import {createHash} from 'node:crypto';
+import {verifySnapshot,validateManifest} from '../scripts/snapshots.mjs';
+const bytes=gzipSync(JSON.stringify({provider:'curated',count:1,records:[{sourceId:'one'}]}));
+const entry={provider:'curated',key:'v1/curated.json.gz',count:1,bytes:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')};
+test('valid snapshot restores exact provider records',()=>assert.equal(JSON.parse(verifySnapshot(bytes,entry)).records[0].sourceId,'one'));
+test('corrupt downloads cannot pass checksum',()=>assert.throws(()=>verifySnapshot(Buffer.from('bad'),entry)));
+test('provider or count mismatches are rejected even with valid checksum',()=>assert.throws(()=>verifySnapshot(bytes,{...entry,count:2})));
+test('manifest refuses traversal and duplicate providers',()=>{assert.throws(()=>validateManifest({version:1,release:'v1',providers:[{...entry,key:'../secret'}]}));assert.throws(()=>validateManifest({version:1,release:'v1',providers:[entry,entry]}));});

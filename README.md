@@ -1,40 +1,44 @@
 # Send It
-Snapshot: October 23, 2026 (America/New_York).
 
-## Start here — ChatGPT, Codex or Claude
-Clone or download this repository into a workspace accessible to ChatGPT/Codex or Claude Code. Read [AI-HANDOFF.md](AI-HANDOFF.md) and follow its instructions. For a chat-only interface, attach AI-HANDOFF.md and the relevant source files if it cannot open ZIP archives. No access to the original ChatGPT account is needed for the standalone client/demo.
+Outdoor trip planning, a location database, and reusable Adventure Projects data access in one repository.
 
-## Included
-- `adventure-projects-client/`: complete dependency-free JS SDK, TypeScript declarations, local browser demo, synthetic offline fixtures, CLI examples, tests, research README and design/verification notes.
-- `sites/trail-desk/`: website source, Worker adapter, UI, vendored client, dependency lockfile, framework configuration and supporting assets/scripts.
-- [PROJECT-CONTEXT.md](PROJECT-CONTEXT.md): established requests, architecture, unresolved questions and suggested next steps.
-- [VALIDATION.md](VALIDATION.md): current checks and limitations.
-- `MANIFEST.json`: SHA-256 hashes and sizes for every included file except the manifest itself.
+**For ChatGPT, Codex or Claude:** read [the AI handoff](docs/AI-HANDOFF.md), then [the architecture](docs/ARCHITECTURE.md). Clone the repository to work with source and data; a README link alone does not grant an assistant execution or GitHub write access.
 
-## Quick start (recommended)
-Install Node.js 20+ (22.13+ also satisfies the website requirement), then:
+## Project map
+
+| Component | Location | Role |
+|---|---|---|
+| Good Outside | [apps/good-outside](apps/good-outside) | Main trip planner, weather ranking, map, bookmarks and location directory |
+| Location backend | [apps/good-outside/backend](apps/good-outside/backend) | D1 location API, provider ingestion, refresh jobs and MCP tools |
+| Location snapshots | [apps/good-outside/data](apps/good-outside/data) | 44,692 source records in provider metadata; full snapshots are in R2 |
+| Trail Desk | [apps/trail-desk](apps/trail-desk) | Separate Adventure Projects endpoint explorer and route preview |
+| API client | [packages/adventure-projects-client](packages/adventure-projects-client) | Dependency-free JS SDK, TypeScript declarations, demo and tests |
+| Architecture / handoff | [docs](docs) | Current boundaries, setup, integration roadmap and validation |
+| Snapshot service | [apps/snapshot-service](apps/snapshot-service) | Public R2 reads and authenticated checksum-verified uploads |
+| Maintenance commands | [scripts](scripts) | Snapshot restoration, planner tests and client synchronization |
+
+## Start locally
+
+Use Node.js 22.13+ and Python 3 (database tests). From the repository root:
 
 ```sh
-cd adventure-projects-client
-npm test
+npm run data:download
+npm run check:client
 npm run demo:offline
 ```
-Open http://127.0.0.1:4173. Stop with Ctrl+C. For real upstream data use `npm run demo`. No npm install is needed for this package.
 
-## Website
-The website uses Vinext/Vite and a Cloudflare Worker. See its README for the framework lifecycle.
+The dependency-free API demo opens at http://127.0.0.1:4173. `npm run demo` uses live upstream requests. `npm run test:client` runs its tests.
 
-```sh
-cd sites/trail-desk
-npm run install:ci
-npm run build
-npm start
-```
-Use the URL printed by the server. These commands require downloading dependencies and have not been rerun for this handoff. The Worker intercepts `/`, `/app.js`, `/style.css`, `/api/config`, `/api/search`, and `/api/route`; the placeholder `app/page.tsx` is not the main Trail Desk UI. `npm run dev` may differ from the built Worker path, so use the built preview to verify the actual handler.
+For the main planner, follow [Good Outside setup](docs/GOOD-OUTSIDE-SETUP.md). Each app retains its own package-lock.json and installs independently; the root is a command hub, not an npm workspace with a shared dependency lockfile. Do not run a root install expecting both apps to be installed.
 
-Do not run `sites/trail-desk/trail-ui/start.js`: that copied demo server imports a missing `../src/index.js`. Use the standalone demo above, or repair that import deliberately in future work.
+## How the apps fit together
 
-## Portability and scope
-This is a source snapshot, not a transfer of a hosted account or deployment. The original Sites project ID was removed from the copied hosting manifest so a future deployment can be associated with a new project. Original local files were not changed. Dependencies, build output, git internals, runtime caches, environment files and the redundant deployment tarball are excluded. Vendored source and its license files are included.
+Good Outside is the main planning experience. Its `/locations` page is the browser for its persistent location catalog. Trail Desk is a separate tool for exploring Adventure Projects search and route geometry. The reusable SDK supports Trail Desk today; feeding its records into the planner is future integration work, not an implemented connection. See [architecture and roadmap](docs/ARCHITECTURE.md).
 
-The accessible Send It Page contains only an introduction placeholder and has no child pages. No broader product specification was found. The context document summarizes available project conversation, not a complete transcript export. No unrelated personal history is included. Existing source licensing and upstream-data limitations are unchanged.
+The four R2 location snapshots contain 35,753 OpenBeta, 6,935 OpenSkiData, 1,955 RIDB and 49 curated records. These are source records, not deduplicated physical places. Preserve per-provider attribution and licenses; OpenSkiData-derived data remains ODbL. See [source documentation](apps/good-outside/docs/data-sources.md).
+
+No credentials, deployed database ownership, user bookmarks or account schedules are transferred. Snapshot JSON can recreate the location records; operational refresh history remains in the original hosted database. See [validation](docs/VALIDATION.md) for checks and limitations.
+
+## External snapshot storage
+
+Catalog records are stored in R2, not GitHub. [The versioned manifest](data/snapshots.json) pins their counts, sizes, hashes and source licenses. `npm run data:download` fetches and verifies them. See [storage operations](docs/DATA-STORAGE.md) for one-command import and publishing future releases.

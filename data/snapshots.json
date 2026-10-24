@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "release": "2026-10-23",
+  "baseUrl": "https://sendit-catalog-data.johnlhenning.chatgpt.site/snapshots/",
+  "providers": [
+    {
+      "provider": "curated",
+      "key": "2026-10-23/curated.json.gz",
+      "count": 49,
+      "bytes": 6948,
+      "sha256": "69c98c35bc0159d9b615f70a81018c65ec3c59cd1f43853e205756ac92c9bd0c",
+      "license": "Source-specific terms",
+      "fetchedAt": "2026-10-24T01:30:53.946Z"
+    },
+    {
+      "provider": "openbeta",
+      "key": "2026-10-23/openbeta.json.gz",
+      "count": 35753,
+      "bytes": 3166491,
+      "sha256": "0fc40da15d6270942a8711bef9f15cc55c4d6de0463822d083e8d4455b0f7714",
+      "license": "CC0-1.0",
+      "fetchedAt": "2026-10-24T01:25:10.982Z"
+    },
+    {
+      "provider": "openskidata",
+      "key": "2026-10-23/openskidata.json.gz",
+      "count": 6935,
+      "bytes": 378902,
+      "sha256": "709a56536c3842dbd725e22467595f510c4906f42c8c0d4692f22bdd0b313764",
+      "license": "ODbL-1.0",
+      "fetchedAt": "2026-10-24T01:25:05.182Z"
+    },
+    {
+      "provider": "ridb",
+      "key": "2026-10-23/ridb.json.gz",
+      "count": 1955,
+      "bytes": 73905,
+      "sha256": "7fc18e70f787bdb5dd6200373b702408eaaeaf1f253c3d7a3742e6cbe8b41102",
+      "license": "US federal RIDB catalog; source-specific terms",
+      "fetchedAt": "2026-10-24T01:45:18.832643Z"
+    }
+  ]
+}
