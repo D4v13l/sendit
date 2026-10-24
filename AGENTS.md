@@ -1,0 +1,1 @@
+Read README.md, AI-HANDOFF.md and PROJECT-CONTEXT.md before working. Follow the existing SDK capability boundaries. Run relevant tests and report actual results. Do not deploy to the original owner’s hosting project.

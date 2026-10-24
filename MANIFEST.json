@@ -1,0 +1,752 @@
+[
+  {
+    "path": ".gitignore",
+    "bytes": 104,
+    "sha256": "edd7ca43b3964ec502507f02a5924b2a3287de79ee37c87cd5bda6aa728d1072"
+  },
+  {
+    "path": "AGENTS.md",
+    "bytes": 219,
+    "sha256": "405db627bb81350409c63dbe02e922be748c19b3437a54c4fe222e12e2519598"
+  },
+  {
+    "path": "AI-HANDOFF.md",
+    "bytes": 2063,
+    "sha256": "f9ec67573d2e978069210bd2fc92207875f59a42714ac61e03dbab7649ae604c"
+  },
+  {
+    "path": "CLAUDE.md",
+    "bytes": 80,
+    "sha256": "87fe90a462fc54977082eb2573deb1719777d63ae00262bcdf90be05870dcfa6"
+  },
+  {
+    "path": "PROJECT-CONTEXT.md",
+    "bytes": 3260,
+    "sha256": "76c8bcb1dc27039eae860d65eb403acfe8a4fcf125510073b30a1fb7a2253537"
+  },
+  {
+    "path": "README.md",
+    "bytes": 3003,
+    "sha256": "036aed04781b16dc3a92c095ebd1270250e97de3aa4cb63cbcda91f757bfc16c"
+  },
+  {
+    "path": "START-HERE.md",
+    "bytes": 2956,
+    "sha256": "9dce46f60cb6e126afd882919a3bcf87364af52ec69ecf5c752b1fa0cb94925f"
+  },
+  {
+    "path": "VALIDATION.md",
+    "bytes": 932,
+    "sha256": "6de2759c471cdf1795e3945a96c5c30ddd47826468bcddfd5588f715938af444"
+  },
+  {
+    "path": "adventure-projects-client/.gitignore",
+    "bytes": 30,
+    "sha256": "63edb613f4ad0e8fb35ecf08a37c63012efbaafa08012d85b1aa608964606016"
+  },
+  {
+    "path": "adventure-projects-client/README.md",
+    "bytes": 13802,
+    "sha256": "1ba292985446974bd881e2f8fae92e3c7f616fa4c0d2d68b473df03f729849e6"
+  },
+  {
+    "path": "adventure-projects-client/demo/app.js",
+    "bytes": 8552,
+    "sha256": "50da3e911f4face12cceadfa80cdb89f1ba628a58b4a9a123f786f9f1f3fd95a"
+  },
+  {
+    "path": "adventure-projects-client/demo/fixtures.js",
+    "bytes": 2826,
+    "sha256": "cb2dc296203970c2794725cb84b27d521b9e033b9772b30bb5fff4a2b1911fb0"
+  },
+  {
+    "path": "adventure-projects-client/demo/index.html",
+    "bytes": 2576,
+    "sha256": "89c48547896ce0b7c52d978c4132bebd0a6a2140d492c12cd905ed416cb1cc71"
+  },
+  {
+    "path": "adventure-projects-client/demo/server.js",
+    "bytes": 3006,
+    "sha256": "b3fcded8923bf1893042a3849f0f8102072a3b8e36ca2ba5709d1cb8a9c21f2d"
+  },
+  {
+    "path": "adventure-projects-client/demo/start.js",
+    "bytes": 421,
+    "sha256": "0b928f0aecd051c54a71cc76e176d7cf93100cf427535a81b7359dee9a45643d"
+  },
+  {
+    "path": "adventure-projects-client/demo/style.css",
+    "bytes": 5286,
+    "sha256": "8be25dd4058c71b2d643a26a9fe2e5e7146b486ece41544d3bee5449ba0003bc"
+  },
+  {
+    "path": "adventure-projects-client/docs/design.md",
+    "bytes": 1881,
+    "sha256": "8b9fdafa2143921a27b9b64ccf632e521d0acf4ba2c9b23d08fd94bb3658005b"
+  },
+  {
+    "path": "adventure-projects-client/docs/verification.md",
+    "bytes": 2897,
+    "sha256": "83e4ebd7ca0a8ed7b1effe36679d7e18f8f5ab07f08d35f4653f1c675305e724"
+  },
+  {
+    "path": "adventure-projects-client/examples/live-smoke.js",
+    "bytes": 681,
+    "sha256": "d8a172f6401aaa89ca8de7ede615c96129136b7f9b71735f8814f6a4fdc65ecd"
+  },
+  {
+    "path": "adventure-projects-client/examples/search.js",
+    "bytes": 549,
+    "sha256": "f3e04443e218c78c06a6834e072dd5f88ac05122e0283c34e920f27ab0c4d003"
+  },
+  {
+    "path": "adventure-projects-client/package.json",
+    "bytes": 648,
+    "sha256": "67881f56fabf03009ffd65f5d881427bc3e289017fdba5b993d3188be30ec0dc"
+  },
+  {
+    "path": "adventure-projects-client/src/index.d.ts",
+    "bytes": 4566,
+    "sha256": "c0e3f4f448fb79d0183b4c18ecd1035c03e3bda74263b9bf2ae74c9f7bad9e11"
+  },
+  {
+    "path": "adventure-projects-client/src/index.js",
+    "bytes": 10700,
+    "sha256": "1826970b0442aafe80745e80a8c48a94de7cb1848bf346bd71566c3f2d9608a7"
+  },
+  {
+    "path": "adventure-projects-client/test/client.test.js",
+    "bytes": 7391,
+    "sha256": "3f806730f5eaa1dc60c056775c30a68969d695f6cb6e944c86ae59fcc952da26"
+  },
+  {
+    "path": "adventure-projects-client/test/demo.test.js",
+    "bytes": 1601,
+    "sha256": "a3e4ddf9d32c16ce493fa14734f483e82c7fcf0502c4d5ad388b020108d9f5cc"
+  },
+  {
+    "path": "adventure-projects-client/test/types.ts",
+    "bytes": 608,
+    "sha256": "a9fb78d93b2a64cb601f0f2949d687e54fc15ec05beadb8aa2ba133bea893797"
+  },
+  {
+    "path": "sites/trail-desk/.gitignore",
+    "bytes": 614,
+    "sha256": "5ca3c39bdc1288c108a1931b3f6bc5795464b6253e9457390617774259deed0c"
+  },
+  {
+    "path": "sites/trail-desk/.npmrc",
+    "bytes": 45,
+    "sha256": "a3909ac0447c469fda12c57374993be70f47ce73e49fd3124678c7c047f2214d"
+  },
+  {
+    "path": "sites/trail-desk/.openai/hosting.json",
+    "bytes": 31,
+    "sha256": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947"
+  },
+  {
+    "path": "sites/trail-desk/README.md",
+    "bytes": 10934,
+    "sha256": "6a8169063d2b024fcbe791837621e0f2bd9863968b5d654d2a0975e76e2ad7f8"
+  },
+  {
+    "path": "sites/trail-desk/adventure-client/index.d.ts",
+    "bytes": 4566,
+    "sha256": "c0e3f4f448fb79d0183b4c18ecd1035c03e3bda74263b9bf2ae74c9f7bad9e11"
+  },
+  {
+    "path": "sites/trail-desk/adventure-client/index.js",
+    "bytes": 10700,
+    "sha256": "1826970b0442aafe80745e80a8c48a94de7cb1848bf346bd71566c3f2d9608a7"
+  },
+  {
+    "path": "sites/trail-desk/app/chatgpt-auth.ts",
+    "bytes": 2550,
+    "sha256": "4265a2e7c2dcb3a6f4b7026f762bf5b6e4caec76cc13c0a45987ee9a9f2e42cc"
+  },
+  {
+    "path": "sites/trail-desk/app/globals.css",
+    "bytes": 3928,
+    "sha256": "8546d9b115f0addd582f7ceaaa6b1c069310bcc77c43ee7b8acfe0020be3afd7"
+  },
+  {
+    "path": "sites/trail-desk/app/layout.tsx",
+    "bytes": 457,
+    "sha256": "3d30bb9090d1d74e3612d3cd0b24e546f6d80cd0af6a21d3b020bd510235b438"
+  },
+  {
+    "path": "sites/trail-desk/app/page.tsx",
+    "bytes": 100,
+    "sha256": "62778fee96e6a6a0a4eed58f59ebd2c8ea906262d6583156653e55e9674c0872"
+  },
+  {
+    "path": "sites/trail-desk/cloudflare-env.d.ts",
+    "bytes": 99,
+    "sha256": "8b0eca84aa3364cc7ccc43cc3af6beb88dd34ebd410de08690bf094ce39fbcb0"
+  },
+  {
+    "path": "sites/trail-desk/components/connector-error.tsx",
+    "bytes": 1082,
+    "sha256": "2d0d04559952ce9c9a327cca499f4b99f35d885cccfce375230e116695d3f155"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/accordion.tsx",
+    "bytes": 2048,
+    "sha256": "a4f153089ba886dfcf73fac26b5c01ca933fa12fbe88df6fb723912bfffdfbb0"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/alert-dialog.tsx",
+    "bytes": 5439,
+    "sha256": "9a8d950f2b9b4352d5ebb762fb44d5c28c2d353aa29712071973656a8736e311"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/alert.tsx",
+    "bytes": 1614,
+    "sha256": "2cc59b5f7bda91c1670884b1bf46bfc8a2a6f226cef184f5762acc037188885b"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/aspect-ratio.tsx",
+    "bytes": 274,
+    "sha256": "b1c157886236782cb92d8fbcd4749532aaf6d8aabefd6e157ca40358f902f407"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/attachment.tsx",
+    "bytes": 6002,
+    "sha256": "ae8a25dd1a896d3964e3ef54d97e51221b418cde287dfd794428b89951c5c790"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/avatar.tsx",
+    "bytes": 2916,
+    "sha256": "58a846bf1617b94b9681921db9b8461d0145f311424663d11678a06b6153cb34"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/badge.tsx",
+    "bytes": 1776,
+    "sha256": "46a0de5224f6a5d5d63d45246534288518dce888f031064bff925bbc7fe6ad97"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/breadcrumb.tsx",
+    "bytes": 2350,
+    "sha256": "d4c0831bba2212e778248f54a6ace6ef378df8bba4616d1abf27787a31eabae5"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/bubble.tsx",
+    "bytes": 4699,
+    "sha256": "870cc0c5cfc8a515053f7e41e706a6bd017a909b45f1305fd3b164a52cc4483b"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/button-group.tsx",
+    "bytes": 2202,
+    "sha256": "784c89d8ee683e1bc972ae69e6ea8225a7f63abe22aa1b5fc3423ae8a2a399c0"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/button.tsx",
+    "bytes": 2392,
+    "sha256": "cc36af0f8b5019c33cc039fbf03bb952a513072b15b55b53c592b78af3e5f4c4"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/calendar.tsx",
+    "bytes": 7832,
+    "sha256": "3855fbe0d3f8ad3a4b93071f98b76a9f6782d46ec8b05f5d2ddbee1e4e39bc84"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/card.tsx",
+    "bytes": 1987,
+    "sha256": "c48dd3b96be90a7066f1aebf294f0af9d00ebcdc367d5d4aca55429ade570c1c"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/carousel.tsx",
+    "bytes": 5556,
+    "sha256": "b7ea0dda3903d972c186f739e23da61f547bc83b5a0bf13b16856577846d5fc3"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/chart.tsx",
+    "bytes": 10614,
+    "sha256": "45aa5ea4a386f4fb5b8869ff4bab3a08cf89255190ee322043baf84c3e950b6a"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/checkbox.tsx",
+    "bytes": 1214,
+    "sha256": "b23ab9d4deeedf2ac8f512c368361ede681aa383437ef48563a6f9b7dbe95f27"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/collapsible.tsx",
+    "bytes": 795,
+    "sha256": "c6598e5584f4258b5d9fefadbc5ad6a66888ad58729f4b634a0bb2d9c513188b"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/combobox.tsx",
+    "bytes": 9158,
+    "sha256": "2d68e78b2dc7e38a085f222dede60a80b4f8229a6e91732c484605e204d46735"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/command.tsx",
+    "bytes": 4818,
+    "sha256": "361193df1e3d64a9e9b5048f045264782fcb387aab3f00f2b805fdcbf538b16a"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/context-menu.tsx",
+    "bytes": 8268,
+    "sha256": "2cf1fcf59df0649a3e2a126d1df2f639145f6b6bf5689ee54af1f40ab1245017"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/dialog.tsx",
+    "bytes": 4303,
+    "sha256": "dce39c6adc47d997bd2567f8b7a72f466b0134715105cd42f9194007b8ecdb14"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/direction.tsx",
+    "bytes": 506,
+    "sha256": "84ae2ad658207f0e0f367978e5508cd8027cd00c29c41d3d13db21a708c3d1e6"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/drawer.tsx",
+    "bytes": 4255,
+    "sha256": "cb6eaf58eb0757ca91af284e5d925b89a42ad7eb19cb3f44c575a3487aa9350f"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/dropdown-menu.tsx",
+    "bytes": 8418,
+    "sha256": "98f0dcdae38225b73734aceeb9213dd751fea2c72ea520df31003cd133deac8a"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/empty.tsx",
+    "bytes": 2396,
+    "sha256": "ae95bdcf367a076ae02e7925f14522a148798f72d9651749c6d55497dba584c0"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/field.tsx",
+    "bytes": 6159,
+    "sha256": "ba67d76f017ac059fc86cf8c344e0b2991c4322d3619e125498c19b87f6eefbd"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/form.tsx",
+    "bytes": 3757,
+    "sha256": "315b46bb75ab7d1c6061b5d750aa4bedf6e7a455e15e2d7f9182f053d5972b1e"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/hover-card.tsx",
+    "bytes": 1526,
+    "sha256": "f5d8df42c59370ec14d61bcc54f7d68e9bb7dfa0d6a872b2f7cffc2aafbf23b8"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/input-group.tsx",
+    "bytes": 5065,
+    "sha256": "6afbd58fea4c438e6252dc4568bddc122e84ababead4ad5cee50ace01100c9a0"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/input-otp.tsx",
+    "bytes": 2254,
+    "sha256": "161946daa89f0eda2575b9271c0494e35807c4ffb55598a49f67160c17fec299"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/input.tsx",
+    "bytes": 962,
+    "sha256": "8c4612a7c41319ac5049daa3b34b080f9784b6245c17780eb87c127e58e473db"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/item.tsx",
+    "bytes": 4486,
+    "sha256": "6e2144d6d87142dbbe56d568810bf546318c8aa661447ebb0d76ebbf382cb45f"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/kbd.tsx",
+    "bytes": 862,
+    "sha256": "6088c3a5432338b1719c17e9b5d0e1fa74fd1f66060f248fc88909d33a82cd13"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/label.tsx",
+    "bytes": 606,
+    "sha256": "a476e41f08b9de5bd447de66a33d8bc2ad18f2fa6b96c064778bab4b6f439f4c"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/marker.tsx",
+    "bytes": 1864,
+    "sha256": "3d798763f094b2bb5e7ade2d5cd1b9bab498bc8ca7fd4cfaf4e5835bdedc34a0"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/menubar.tsx",
+    "bytes": 8389,
+    "sha256": "9243af8afcea03703398ccd1c2a8c0a87ad6cbaf2bd272fb609f5b79fe46aebb"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/message-scroller.tsx",
+    "bytes": 3992,
+    "sha256": "bb7660a248e4e9589c3816c7c1c199ea1381a70d2c8476ae895b567a7a4d86cf"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/message.tsx",
+    "bytes": 2232,
+    "sha256": "9d2952bf3b641081f09aa2739535e6bbd1be0a4946789752a2c20d8aaef43185"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/native-select.tsx",
+    "bytes": 1995,
+    "sha256": "007516b111fca8c98a6c40c94ab91bb68cc5b52afce1ed1f5e510c3d86e7347c"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/navigation-menu.tsx",
+    "bytes": 6658,
+    "sha256": "889d358a77de88e9cb6f39ea4895ea4c76eaf01d731b74e44f1c41e97a78a044"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/pagination.tsx",
+    "bytes": 2717,
+    "sha256": "374ad135c3d4ff3ec080a0009cd9745cdd0e12faa89d2b0e86074f11e5127fd1"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/popover.tsx",
+    "bytes": 2357,
+    "sha256": "31c350309ff5d3034e6ecf1b0eda75ba8855bdbf987fc7ad6d71f0ef07c5a447"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/progress.tsx",
+    "bytes": 755,
+    "sha256": "c8c26e8f5f041c3cdf4915347dc1d9c022f9448f149990fadcaf303e952fa57d"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/radio-group.tsx",
+    "bytes": 1460,
+    "sha256": "fe5ce39636d0818c2bf9c4eebddff893d1225fa2c81b5fa4bb8cbb39a8c913ce"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/resizable.tsx",
+    "bytes": 1815,
+    "sha256": "bc63958467aa00557c551bb0d96a5ae4c965c1e1ba2380e595949d933b132f7c"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/scroll-area.tsx",
+    "bytes": 1639,
+    "sha256": "8bd9d986b2844c9a87de825c6de4787b6739b36c3dc9a05ccf3eb107160e4043"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/select.tsx",
+    "bytes": 6353,
+    "sha256": "0b796a108a4eb5ba52d9ad938b7aea36dc56ae66c703a6d0a23dbc24f96daff3"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/separator.tsx",
+    "bytes": 694,
+    "sha256": "6da346505c8629a4668420d2a5ca48891383bbe0b0ceb14163537c671879427e"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/sheet.tsx",
+    "bytes": 4188,
+    "sha256": "63863cf2df8f8973e52b3459ac9bdbf81be1262dbc70eb53d5271ffb03488e16"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/sidebar.tsx",
+    "bytes": 21526,
+    "sha256": "4a8d73e7730a2b1fcecfca31299ed26db65c2307b84197a59c6ec7c01c7ad28e"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/skeleton.tsx",
+    "bytes": 276,
+    "sha256": "ba48dd5be5a6a1378bd4e011028654b5bf419f1e7d20ee4b9f8330c1264e7239"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/slider.tsx",
+    "bytes": 1991,
+    "sha256": "0e37484f4b416e79ac18c655cac961aefacf6e67085cfc2b320ea8af545635a3"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/sonner.tsx",
+    "bytes": 1034,
+    "sha256": "13ccc9b0fe4248e622f83a1d3b2f0566b72b5e04162d7d0c8db8945ecc71b55f"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/spinner.tsx",
+    "bytes": 331,
+    "sha256": "3e6e6e8d37fb4069f8e43e55318f8db06fbc36e6c8be0096da3c9337c1c798b9"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/switch.tsx",
+    "bytes": 1408,
+    "sha256": "386d4d4deb39f34126f9700fe9bf5393d238485dd94018bba9d154dda84c62ae"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/table.tsx",
+    "bytes": 2478,
+    "sha256": "20e5a7f224959c6b75802995706a97e9da171f693d4b6b1b436388fcd9df96f3"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/tabs.tsx",
+    "bytes": 3782,
+    "sha256": "865d0194331b9b2be36723fa79d3575dc83078b4cb941cafee87cb72fc2cff46"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/textarea.tsx",
+    "bytes": 759,
+    "sha256": "253cdeb487c73beaaccdf47fc163e36e7d5b7ae6ddf09a4f64998a109a112979"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/toggle-group.tsx",
+    "bytes": 2308,
+    "sha256": "69f643e889e933f05c1439084480d8646f66a161c7d1cf0730ee926382ade35e"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/toggle.tsx",
+    "bytes": 1565,
+    "sha256": "ba4d0b0a2b2fee75dc36dfc19e32082e721024b919050c97fd5dc70faa924e16"
+  },
+  {
+    "path": "sites/trail-desk/components/ui/tooltip.tsx",
+    "bytes": 1830,
+    "sha256": "a0784eb77831a799fad7991df4f1b666f876201565a80175e1aa68733574a2e4"
+  },
+  {
+    "path": "sites/trail-desk/components.json",
+    "bytes": 420,
+    "sha256": "31f4ca67a4a62572571003d3d5aac85ee6fbfca67a192924bac6b168d95e98fd"
+  },
+  {
+    "path": "sites/trail-desk/db/index.ts",
+    "bytes": 423,
+    "sha256": "dc7610b00b918e0ffff1360a63626f16655ced3064b2eaf96095a4101fb14bcd"
+  },
+  {
+    "path": "sites/trail-desk/db/schema.ts",
+    "bytes": 169,
+    "sha256": "13ddacbf0be50e054d450a6c642b7fdc1aa943fd6b99084711e07e58b600390d"
+  },
+  {
+    "path": "sites/trail-desk/drizzle/meta/_journal.json",
+    "bytes": 61,
+    "sha256": "90cb374e093894d0efce6f1830d873a42aadd8ba49d2f024495e5cb2e1c8c303"
+  },
+  {
+    "path": "sites/trail-desk/drizzle.config.ts",
+    "bytes": 148,
+    "sha256": "af081f7384aaeb0082cf422e29f139d137ca2f6a57c69b2c37b9fb1f8479867b"
+  },
+  {
+    "path": "sites/trail-desk/eslint.config.mjs",
+    "bytes": 791,
+    "sha256": "eeda7faabe9560fa9fdb26675b0011fa78461ca7061989732f5da9245b87e315"
+  },
+  {
+    "path": "sites/trail-desk/examples/d1/app/api/notes/route.ts",
+    "bytes": 1700,
+    "sha256": "a3d4a74fd53b7bf53e2df41f169d9d9d44a8b22aeb6d92f4e754956079af8909"
+  },
+  {
+    "path": "sites/trail-desk/examples/d1/db/schema.ts",
+    "bytes": 370,
+    "sha256": "d89eabd95716ce404f5f7ca2a254220435be8ddce7c899d7ef461ff22ec80454"
+  },
+  {
+    "path": "sites/trail-desk/hooks/use-mobile.ts",
+    "bytes": 565,
+    "sha256": "ad0936f84f1df79d3697bfbff9c18f8ad58431c1cbaf2359c6a853b0fcc9f28b"
+  },
+  {
+    "path": "sites/trail-desk/lib/connector-context.ts",
+    "bytes": 612,
+    "sha256": "bbddff68689cb0f6926fecd4b8b96f12f2054277c296e97b0df07d4ad5ece24e"
+  },
+  {
+    "path": "sites/trail-desk/lib/connector-contract.mts",
+    "bytes": 5362,
+    "sha256": "e1a7b24a8793af34b595690d9b1300c897c7321c14f215cedf58ad95799d7c3e"
+  },
+  {
+    "path": "sites/trail-desk/lib/connector-errors.mts",
+    "bytes": 2717,
+    "sha256": "a22edf13d6873ae832c4a2a0d579fc666c73ec996ef0722d39172649d38f0871"
+  },
+  {
+    "path": "sites/trail-desk/lib/connector-preview.d.ts",
+    "bytes": 433,
+    "sha256": "abd69a94f7f61f1359063bb557574faae35e8ff5a028cc4c04b9ee248ef52642"
+  },
+  {
+    "path": "sites/trail-desk/lib/connectors.ts",
+    "bytes": 416,
+    "sha256": "1c93d747e384c8e17e3e3dd5361b24412babf5eba2a11d2ae7a75f4e0924112c"
+  },
+  {
+    "path": "sites/trail-desk/lib/utils.ts",
+    "bytes": 177,
+    "sha256": "53f3d3d070f0a9082934da25b875f9499855c2b0693868dd28be8c23d8730f68"
+  },
+  {
+    "path": "sites/trail-desk/next-env.d.ts",
+    "bytes": 284,
+    "sha256": "217ce9348b523c3e6954fb50bb93364b58781d86742c995f3a5b03ba88b9ba72"
+  },
+  {
+    "path": "sites/trail-desk/next.config.ts",
+    "bytes": 133,
+    "sha256": "614bce25b089c3f19b1e17a6346c74b858034040154c6621e7d35303004767cc"
+  },
+  {
+    "path": "sites/trail-desk/package-lock.json",
+    "bytes": 504152,
+    "sha256": "eedaeab6870c0f70f9db869fcaa24abae9b0f945cbc9acb8a43b6e7ed6bcbfca"
+  },
+  {
+    "path": "sites/trail-desk/package.json",
+    "bytes": 2102,
+    "sha256": "eb7b53ec5bdce1db5a8576b2ffc3b63ddd8c5fdee0f97dcb341674abbf69843a"
+  },
+  {
+    "path": "sites/trail-desk/postcss.config.mjs",
+    "bytes": 94,
+    "sha256": "dfac7ac2d86d326a0e5adb024e7943c181393ed17a5fcb8f0315b24c7da6ddde"
+  },
+  {
+    "path": "sites/trail-desk/public/favicon.svg",
+    "bytes": 712,
+    "sha256": "e6d2e59b7b5bbb0342e0fb496dfc262decbfe4426bbb7b047aec8d467d1dc6f7"
+  },
+  {
+    "path": "sites/trail-desk/scripts/build-verified.sh",
+    "bytes": 661,
+    "sha256": "2ae5329ac860076070c9217a43106a15cb5ecf907a0f7baeb9ef903f76b53c68"
+  },
+  {
+    "path": "sites/trail-desk/scripts/connector-preview/connector-preview-session.mjs",
+    "bytes": 6855,
+    "sha256": "57224ad185a25115a14fccc68d3217e55b199260c3dd98a2c807beffec1a0a9b"
+  },
+  {
+    "path": "sites/trail-desk/scripts/connector-preview/host-binding.mjs",
+    "bytes": 7793,
+    "sha256": "9e44ab6864133a5c82f834a5904ebb7d6104cb783c24efba3c0fe1a161182cea"
+  },
+  {
+    "path": "sites/trail-desk/scripts/connector-preview/protocol.mjs",
+    "bytes": 1781,
+    "sha256": "111e062ebf08d3f180130f5bc3dcb3c1414c1d7be3c032c9d675a61c0c7513a8"
+  },
+  {
+    "path": "sites/trail-desk/scripts/connector-preview/worker.mjs",
+    "bytes": 618,
+    "sha256": "bd9c98fc68f29d975fe10508dfc9029bb681dc5789a62861d5c938bdea2064bb"
+  },
+  {
+    "path": "sites/trail-desk/scripts/execution-profile.mjs",
+    "bytes": 624,
+    "sha256": "2e71116f4d2b70cff8bb70436f8dd5c709ec7ff62893424530f404e0193d3630"
+  },
+  {
+    "path": "sites/trail-desk/scripts/install-ci.mjs",
+    "bytes": 1685,
+    "sha256": "4a5a92d60a08d0ba54effd8373da2da06284312c55b767287c68a0bec7200da7"
+  },
+  {
+    "path": "sites/trail-desk/scripts/install-ci.sh",
+    "bytes": 6783,
+    "sha256": "10d8764a61be50351dc3496e13588270de7956f0aa5f1189c49cabb2d89fe5c0"
+  },
+  {
+    "path": "sites/trail-desk/scripts/install-pnpm.sh",
+    "bytes": 9015,
+    "sha256": "a684c02c2b493dfbf262a66252a5cd36f81ca995a4024761728662ae63aa40c0"
+  },
+  {
+    "path": "sites/trail-desk/scripts/npm-install.mjs",
+    "bytes": 7025,
+    "sha256": "9715c6a32d1d4a0289ef6376a0e819c3b6a6416b8a9877733d9fb4339ce626b6"
+  },
+  {
+    "path": "sites/trail-desk/scripts/pnpm-install.mjs",
+    "bytes": 10633,
+    "sha256": "a83164e344c1947053def83b546be8115deaa827314bbaead7afe6b6451c5cdf"
+  },
+  {
+    "path": "sites/trail-desk/scripts/run-framework.mjs",
+    "bytes": 993,
+    "sha256": "9bf9f41a29314cabe0238b8e9c540ec3f7b5a6adafc7c8fb6c3940722d061dca"
+  },
+  {
+    "path": "sites/trail-desk/scripts/sites-env.mjs",
+    "bytes": 522,
+    "sha256": "21d7bde6acb9f716287e652c1b0e43ae4803d79be367ca2192fcba14740b5338"
+  },
+  {
+    "path": "sites/trail-desk/scripts/sites-env.sh",
+    "bytes": 1600,
+    "sha256": "d18af7b222db748c9de257d5955b9d7f77ec350dab6321f114f0bc44c20388ac"
+  },
+  {
+    "path": "sites/trail-desk/scripts/tool-environment.mjs",
+    "bytes": 791,
+    "sha256": "6da99286e0eb7905595ca851e68983bedf94a0f93814819d61f2b1f3a0342ba2"
+  },
+  {
+    "path": "sites/trail-desk/scripts/vite/connector-preview-plugin.mjs",
+    "bytes": 7211,
+    "sha256": "a6a9fe2086e302f94a3f91e3c1a68a45bb3aa07d4a79faf01b14732191eb4e80"
+  },
+  {
+    "path": "sites/trail-desk/scripts/vite/sites-vite-plugin.LICENSE",
+    "bytes": 1063,
+    "sha256": "7de1e115d165f176e68f962acdb809b5ab8d8ae78d3981e0701392b2ac50c713"
+  },
+  {
+    "path": "sites/trail-desk/scripts/vite/sites-vite-plugin.ts",
+    "bytes": 7185,
+    "sha256": "07af20e7097d9ed1d76f7c446d02997550b8fc5ca89668b249e25eabd62c6834"
+  },
+  {
+    "path": "sites/trail-desk/trail-handler.js",
+    "bytes": 2111,
+    "sha256": "fb632a0e9c2a93fc58138e253f56aec01e5165bc2496fea1324a09b2251bdbd2"
+  },
+  {
+    "path": "sites/trail-desk/trail-ui/app.js",
+    "bytes": 8552,
+    "sha256": "50da3e911f4face12cceadfa80cdb89f1ba628a58b4a9a123f786f9f1f3fd95a"
+  },
+  {
+    "path": "sites/trail-desk/trail-ui/fixtures.js",
+    "bytes": 2826,
+    "sha256": "cb2dc296203970c2794725cb84b27d521b9e033b9772b30bb5fff4a2b1911fb0"
+  },
+  {
+    "path": "sites/trail-desk/trail-ui/index.html",
+    "bytes": 2576,
+    "sha256": "89c48547896ce0b7c52d978c4132bebd0a6a2140d492c12cd905ed416cb1cc71"
+  },
+  {
+    "path": "sites/trail-desk/trail-ui/server.js",
+    "bytes": 3006,
+    "sha256": "b3fcded8923bf1893042a3849f0f8102072a3b8e36ca2ba5709d1cb8a9c21f2d"
+  },
+  {
+    "path": "sites/trail-desk/trail-ui/start.js",
+    "bytes": 421,
+    "sha256": "0b928f0aecd051c54a71cc76e176d7cf93100cf427535a81b7359dee9a45643d"
+  },
+  {
+    "path": "sites/trail-desk/trail-ui/style.css",
+    "bytes": 5286,
+    "sha256": "8be25dd4058c71b2d643a26a9fe2e5e7146b486ece41544d3bee5449ba0003bc"
+  },
+  {
+    "path": "sites/trail-desk/tsconfig.json",
+    "bytes": 893,
+    "sha256": "a4c1cc83b63ef9d39641d3babaefffa063dccbbc93338e18017b5013d713163e"
+  },
+  {
+    "path": "sites/trail-desk/vendor/shadcn-tailwind-4.13.0.LICENSE.md",
+    "bytes": 1063,
+    "sha256": "1564074e13439397221ffd522e2e504d56561994a23d371aa5e3ad43e4f5423f"
+  },
+  {
+    "path": "sites/trail-desk/vendor/shadcn-tailwind-4.13.0.css",
+    "bytes": 16041,
+    "sha256": "bc7d83425702955b4cb67cb14ede9d603f9d912376d57a2d81d661094d2a782a"
+  },
+  {
+    "path": "sites/trail-desk/vite.config.ts",
+    "bytes": 2673,
+    "sha256": "22ff558b1636d251e076f74c1697c7166079861667af10922d6bc505cb8f8290"
+  },
+  {
+    "path": "sites/trail-desk/worker/index.ts",
+    "bytes": 1445,
+    "sha256": "278ea0fcecdab8b7e834bda711479a3eb04111cf100773fa4aafd7d589882800"
+  }
+]

@@ -1,0 +1,19 @@
+{
+  "name": "adventure-projects-client",
+  "version": "0.1.0",
+  "description": "Unofficial, read-only client for Adventure Projects website endpoints",
+  "type": "module",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "exports": {".": {"types": "./src/index.d.ts", "import": "./src/index.js"}},
+  "files": ["src", "README.md", "docs"],
+  "engines": {"node": ">=20"},
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "demo": "node demo/start.js",
+    "demo:offline": "node demo/start.js --offline",
+    "example": "node examples/search.js",
+    "test:live": "node examples/live-smoke.js"
+  },
+  "license": "UNLICENSED"
+}
