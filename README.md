@@ -29,7 +29,7 @@ npm run demo:offline
 
 The dependency-free API demo opens at http://127.0.0.1:4173. `npm run demo` uses live upstream requests. `npm run test:client` runs its tests.
 
-For the main planner, follow [Good Outside setup](docs/GOOD-OUTSIDE-SETUP.md). Each app retains its own package-lock.json and installs independently; the root is a command hub, not an npm workspace with a shared dependency lockfile. Do not run a root install expecting both apps to be installed.
+For the main planner, follow [Good Outside setup](docs/GOOD-OUTSIDE-SETUP.md). To deploy under your own Cloudflare account, see [own-account deployment](docs/DEPLOY-OWN-ACCOUNT.md). Each app retains its own package-lock.json and installs independently; the root is a command hub, not an npm workspace with a shared dependency lockfile. Do not run a root install expecting both apps to be installed.
 
 ## How the apps fit together
 

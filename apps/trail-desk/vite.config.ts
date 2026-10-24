@@ -11,19 +11,27 @@ const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
 
 const { d1, r2 } = hostingConfig;
 
+// Optional overrides for deploying to your own Cloudflare account. Unset, the
+// build keeps the Sites placeholders, which Sites replaces at publication.
+const ownWorkerName = process.env.SENDIT_WORKER_NAME;
+const ownD1Name = process.env.SENDIT_D1_NAME;
+const ownD1Id = process.env.SENDIT_D1_ID;
+
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 const managedLinux = readExecutionProfile() === "managed-linux";
 
 const localBindingConfig = {
+  ...(ownWorkerName ? { name: ownWorkerName } : {}),
   main: "./worker/index.ts",
   compatibility_flags: ["nodejs_compat"],
   d1_databases: d1
     ? [
         {
           binding: d1,
-          database_name: "site-creator-d1",
-          database_id: SITE_CREATOR_PLACEHOLDER_DATABASE_ID,
+          database_name: ownD1Name || "site-creator-d1",
+          database_id: ownD1Id || SITE_CREATOR_PLACEHOLDER_DATABASE_ID,
+          ...(ownD1Id ? { migrations_dir: "../../drizzle" } : {}),
         },
       ]
     : [],
