@@ -1,5 +1,14 @@
-/* Artifact additions: tile-free map ground and city labels drawn over vector borders. */
+/* Artifact additions: tile-free map ground and labels drawn over vector geography. */
 #map{background:#dbe5e3}
-.leaflet-tooltip.city-label{background:none;border:0;box-shadow:none;padding:0;font-size:11px;line-height:1;color:#3c463f;text-shadow:0 0 3px #f3f1e6,0 0 2px #f3f1e6}
-.leaflet-tooltip.city-label::before{display:none}
 .brand{color:var(--paper)}
+.map-label{position:absolute;left:0;top:0;white-space:nowrap;font-size:11px;line-height:1;color:#39443c;text-shadow:0 0 3px #f3f1e6,0 0 2px #f3f1e6,0 0 1px #f3f1e6}
+.map-label.city,.map-label.peak{transform:translate(-3px,-50%);padding-left:9px}
+.map-label.city::before{content:"";position:absolute;left:0;top:50%;width:5px;height:5px;margin-top:-2.5px;border-radius:50%;background:#4f5a52}
+.map-label.peak{color:#5e5140}
+.map-label.peak::before{content:"";position:absolute;left:-1px;top:50%;margin-top:-4px;border:4px solid transparent;border-top:0;border-bottom:7px solid #7b6a52}
+.map-label.peak b{font-weight:400;color:#7b6a52}
+.map-label.park{transform:translate(-50%,-50%);color:#2f6a3f;font-style:italic;font-weight:600}
+.map-label.range{transform:translate(-50%,-50%);color:#8a7455;font-size:10px;font-style:italic;letter-spacing:.12em;text-transform:uppercase}
+.map-label.left{transform:translate(calc(-100% + 3px),-50%);padding-left:0;padding-right:9px}
+.map-label.city.left::before{left:auto;right:0}
+.map-label.peak.left::before{left:auto;right:-1px}

@@ -1,0 +1,51 @@
+{
+ "source": "Natural Earth vector data (public domain), https://www.naturalearthdata.com/",
+ "repository": "https://github.com/nvkelso/natural-earth-vector",
+ "commit": "ca96624a56bd078437bca8184e78163e5039ad19",
+ "files": {
+  "ne_10m_lakes.geojson": {
+   "bytes": 5043554,
+   "sha256": "2d036f53dedec578001c5c30c2959ee7d4eebc1306900fa4367c49929ec8f2d9"
+  },
+  "ne_10m_lakes_north_america.geojson": {
+   "bytes": 1810283,
+   "sha256": "76f49d4b698f3529e690136a989713bcd3c028ade150346f4b358de9815cfc43"
+  },
+  "ne_10m_lakes_europe.geojson": {
+   "bytes": 1008063,
+   "sha256": "b4dd9e7a5edd0d07b54768b5404d1ebe77f80b9d579c85fff65f90cf50369769"
+  },
+  "ne_10m_lakes_australia.geojson": {
+   "bytes": 204675,
+   "sha256": "29d5f4b1f3f9f38c7247e16d0a4b77f2bcf6d01c9410c39811b7a95d9b324c0e"
+  },
+  "ne_10m_rivers_lake_centerlines.geojson": {
+   "bytes": 7307743,
+   "sha256": "bb854a900ecbd3b408df46d5e16e3e0f974ba55993f9d8b5c26e855273c0905a"
+  },
+  "ne_10m_rivers_north_america.geojson": {
+   "bytes": 8734704,
+   "sha256": "dcd2348655a5f3d0ea7be35024073ab24f09115d2e4efb77e7bc0a33567db682"
+  },
+  "ne_10m_rivers_europe.geojson": {
+   "bytes": 2534505,
+   "sha256": "90712202ac46985812e90840df9acd5101599a9c649868d5bc55ee96c2fedd4c"
+  },
+  "ne_10m_rivers_australia.geojson": {
+   "bytes": 910565,
+   "sha256": "2ea77b867b1ff0440e996f5fab369af6a74fc2da6ebf4006654a96430c171ea7"
+  },
+  "ne_10m_parks_and_protected_lands_area.geojson": {
+   "bytes": 187211,
+   "sha256": "78163a10b3a7f5698e24e4421b7da1955ed7d1dafa986f053473c0b5ec8fe055"
+  },
+  "ne_10m_geography_regions_polys.geojson": {
+   "bytes": 5583870,
+   "sha256": "b7b26e50ea917d3696aec87f932def2bf5f890f5770e441d59c162c6f4c92a77"
+  },
+  "ne_10m_geography_regions_elevation_points.geojson": {
+   "bytes": 862686,
+   "sha256": "f98a16867867146ec4146d6d4b18c823eeedb2825947de666116cf9a4e3f43cb"
+  }
+ }
+}

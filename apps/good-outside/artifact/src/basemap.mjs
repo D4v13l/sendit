@@ -1,51 +1,95 @@
 // Tile-free basemap for the artifact: the page cannot load remote tiles, so it draws
-// Natural Earth / US Census boundaries and GeoNames city labels from files shipped beside it.
+// Natural Earth / US Census geography and GeoNames city labels from files shipped beside it.
 const getJSON=async path=>{const r=await fetch(path);if(!r.ok)throw Error(path+' '+r.status);return r.json()};
 
-export const ATTRIBUTION='Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> · <a href="https://www.census.gov/geographies/mapping-files.html" target="_blank" rel="noopener">US Census</a> · Places: <a href="https://www.geonames.org/" target="_blank" rel="noopener">GeoNames</a> (CC BY 4.0)';
+export const ATTRIBUTION='Geography: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> · <a href="https://www.census.gov/geographies/mapping-files.html" target="_blank" rel="noopener">US Census</a> · Cities: <a href="https://www.geonames.org/" target="_blank" rel="noopener">GeoNames</a> (CC BY 4.0)';
 
-// Smallest population labelled at each zoom; labels are also capped per view.
-export function labelThreshold(zoom){return zoom<4?2e6:zoom<5?7e5:zoom<6?2.5e5:zoom<7?1e5:zoom<8?4e4:15000}
+// Smallest city population labelled at each zoom. Never below 100,000.
+export function labelThreshold(zoom){return zoom<4?2e6:zoom<5?7e5:zoom<6?3e5:1e5}
 
 export function visibleLabels(cities,bounds,zoom,max=150){
  const min=labelThreshold(zoom);
- return cities.filter(c=>c[3]>=min&&c[4]>=bounds.south&&c[4]<=bounds.north&&c[5]>=bounds.west&&c[5]<=bounds.east).sort((a,b)=>b[3]-a[3]).slice(0,max);
+ return cities.filter(c=>c[3]>=min&&inside(bounds,c[4],c[5])).sort((a,b)=>b[3]-a[3]).slice(0,max);
 }
+const inside=(b,lat,lon)=>lat>=b.south&&lat<=b.north&&lon>=b.west&&lon<=b.east;
 
-// Greedy placement, most populous first: a label is dropped if its box would overlap one already placed.
-// project(city) gives its container pixel {x,y}; labels sit to the right of the dot.
-export function placeLabels(candidates,project,max=45){
- const placed=[],boxes=[];
- for(const c of candidates){
-  const {x,y}=project(c),box={l:x-4,r:x+10+c[0].length*6.2,t:y-9,b:y+9};
-  if(boxes.some(o=>box.l<o.r&&box.r>o.l&&box.t<o.b&&box.b>o.t))continue;
-  boxes.push(box);placed.push(c);if(placed.length>=max)break;
+// Which relief and park labels belong at a zoom. Natural Earth ranks run from 0 (most prominent).
+export const showRange=(rank,zoom)=>zoom>=5&&zoom<10&&rank<=Math.min(6,zoom-2);
+export const showPeak=(rank,zoom)=>zoom>=9||(zoom>=8&&rank<=7)||(zoom>=7&&rank<=5);
+export const showParkLabel=zoom=>zoom>=7;
+
+// Greedy placement in priority order. Each label tries a few positions and is dropped only if
+// every one would overlap a label already placed or a `blocked` box (the planner's own markers).
+// Items are {kind, text, lat, lon}; project(item) gives container pixels {x,y}.
+// City and peak names sit beside their dot, right then left; park and range names are centred,
+// then nudged below or above. Placed items gain {side, dy} for rendering.
+export function placeLabels(items,project,max=60,blocked=[]){
+ const placed=[],boxes=[...blocked];
+ const hits=box=>boxes.some(o=>box.l<o.r&&box.r>o.l&&box.t<o.b&&box.b>o.t);
+ for(const item of items){
+  const {x,y}=project(item),n=item.text.length,centred=item.kind==='range'||item.kind==='park',half=n*(item.kind==='range'?3.9:3.3);
+  const options=centred?[0,16,-16].map(dy=>({side:'centre',dy,box:{l:x-half,r:x+half,t:y+dy-8,b:y+dy+8}})):[
+   {side:'right',dy:0,box:{l:x-6,r:x+12+n*6.2,t:y-9,b:y+9}},{side:'left',dy:0,box:{l:x-12-n*6.2,r:x+6,t:y-9,b:y+9}}];
+  const fit=options.find(o=>!hits(o.box));if(!fit)continue;
+  boxes.push(fit.box);placed.push({...item,side:fit.side,dy:fit.dy});if(placed.length>=max)break;
  }
  return placed;
 }
 
-export async function addBasemap(L,topojson,map,{onError}={}){
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const feet=m=>Math.round(m*3.28084).toLocaleString()+' ft';
+
+export async function addBasemap(L,topojson,map,{onError,obstacles=()=>[]}={}){
  const renderer=L.canvas({padding:0.3});
+ const pane=map.createPane('basemapLabels');pane.style.zIndex=450;pane.style.pointerEvents='none';
  const land={renderer,interactive:false,stroke:true,color:'#9aa595',weight:0.8,fill:true,fillColor:'#f3f1e6',fillOpacity:1};
- const thin=(color,weight,dash)=>({renderer,interactive:false,fill:false,color,weight,dashArray:dash});
- const layer=(topo,key,style)=>L.geoJSON(topojson.feature(topo,topo.objects[key]),{style});
- const coarse={},fine={},labels=L.layerGroup().addTo(map);let cities=[];
+ const line=(color,weight)=>({renderer,interactive:false,fill:false,color,weight});
+ const lake={renderer,interactive:false,stroke:true,color:'#b3c8c8',weight:0.5,fill:true,fillColor:'#dbe5e3',fillOpacity:1};
+ const park={renderer,interactive:false,stroke:true,color:'#4f8a5f',weight:1,opacity:0.7,fill:true,fillColor:'#6fa77a',fillOpacity:0.18};
+ const geo=(topo,key,style)=>L.geoJSON(topojson.feature(topo,topo.objects[key]),{style});
+ const layers={},labels=L.layerGroup().addTo(map);let cities=[],parkLabels=[],relief={peaks:[],ranges:[]};
+ // Each layer: file, minimum zoom, maximum zoom, and how to build it once loaded.
+ const plan=[
+  ['countries','data/countries-50m.json',0,5.99,t=>geo(t,'countries',land)],
+  ['countriesFine','data/countries-10m.json',6,99,t=>geo(t,'countries',land)],
+  ['parks','data/parks.json',5,99,t=>geo(t,'parks',park)],
+  ['waterMajor','data/water-major.json',3,99,t=>L.featureGroup([geo(t,'lakes',lake),geo(t,'rivers',line('#6f9cae',1.3))])],
+  ['waterMinor','data/water-minor.json',6,99,t=>L.featureGroup([geo(t,'lakes',lake),geo(t,'rivers',line('#7ea8b8',1))])],
+  ['waterDetail','data/water-detail.json',8,99,t=>L.featureGroup([geo(t,'lakes',lake),geo(t,'rivers',line('#8cb2c0',0.8))])],
+  ['counties','data/counties-10m.json',8,99,t=>geo(t,'counties',{...line('#d8d8cc',0.5),dashArray:'2 3'})],
+  ['states','data/states-10m.json',3,99,t=>geo(t,'states',line('#b4b9ad',0.7))],
+ ];
+ const loading=new Set();
+ const ensure=([key,file,,,build])=>{if(layers[key]||loading.has(key))return;loading.add(key);getJSON(file).then(t=>{layers[key]=build(t);sync()}).catch(()=>{}).finally(()=>loading.delete(key))};
  const sync=()=>{
-  const z=map.getZoom(),show=(l,on)=>{if(!l)return;if(on&&!map.hasLayer(l))l.addTo(map);if(!on&&map.hasLayer(l))l.remove()};
-  show(coarse.countries,z<6||!fine.countries);show(fine.countries,z>=6);
-  show(coarse.states,z>=3&&(z<7||!fine.counties));show(fine.counties,z>=8);
-  // Draw order: land, then county lines, then state lines.
-  for(const l of [fine.counties,coarse.states])if(l&&map.hasLayer(l))l.bringToFront();
-  labels.clearLayers();const b=map.getBounds(),box={south:b.getSouth(),north:b.getNorth(),west:b.getWest(),east:b.getEast()};
-  for(const c of placeLabels(visibleLabels(cities,box,z),c=>map.latLngToContainerPoint([c[4],c[5]])))L.circleMarker([c[4],c[5]],{renderer,radius:2,weight:0,fillColor:'#4f5a52',fillOpacity:0.9,interactive:false}).bindTooltip(c[0],{permanent:true,direction:'right',offset:[4,0],className:'city-label'}).addTo(labels);
+  const z=map.getZoom();
+  for(const entry of plan){const [key,,min,max]=entry,on=z>=min&&z<=max,l=layers[key];
+   // Keep the coarse outline until the detailed one has arrived.
+   const fallback=key==='countries'&&z>=6&&!layers.countriesFine;
+   if(on)ensure(entry);if(!l)continue;
+   if((on||fallback)&&!map.hasLayer(l))l.addTo(map);if(!(on||fallback)&&map.hasLayer(l))l.remove()}
+  // Draw order follows the plan: land, parks, water, then boundary lines on top.
+  for(const [key] of plan)if(layers[key]&&map.hasLayer(layers[key])&&key!=='countries'&&key!=='countriesFine')layers[key].bringToFront();
+  drawLabels(z);
  };
- map.on('zoomend moveend',sync);
+ const drawLabels=z=>{
+  labels.clearLayers();const b=map.getBounds(),box={south:b.getSouth(),north:b.getNorth(),west:b.getWest(),east:b.getEast()};
+  const items=[
+   ...visibleLabels(cities,box,z).map(c=>({kind:'city',text:c[0],lat:c[4],lon:c[5]})),
+   ...(showParkLabel(z)?parkLabels.filter(p=>inside(box,p[1],p[2])).map(p=>({kind:'park',text:p[0],lat:p[1],lon:p[2]})):[]),
+   ...relief.ranges.filter(r=>showRange(r[3],z)&&inside(box,r[1],r[2])).sort((a,b)=>a[3]-b[3]).map(r=>({kind:'range',text:r[0],lat:r[1],lon:r[2]})),
+   ...relief.peaks.filter(p=>showPeak(p[4],z)&&inside(box,p[2],p[3])).sort((a,b)=>b[1]-a[1]).map(p=>({kind:'peak',text:p[0]+' '+feet(p[1]),name:p[0],elevation:feet(p[1]),lat:p[2],lon:p[3]})),
+  ];
+  const blocked=obstacles().map(({x,y,r})=>({l:x-r,r:x+r,t:y-r,b:y+r}));
+  for(const item of placeLabels(items,i=>map.latLngToContainerPoint([i.lat,i.lon]),60,blocked)){
+   const cls=`map-label ${item.kind}${item.side==='left'?' left':''}`,style=item.dy?` style="margin-top:${item.dy}px"`:'';
+   const html=item.kind==='peak'?`<span class="${cls}"${style}>${esc(item.name)} <b>${item.elevation}</b></span>`:`<span class="${cls}"${style}>${esc(item.text)}</span>`;
+   L.marker([item.lat,item.lon],{pane:'basemapLabels',interactive:false,keyboard:false,icon:L.divIcon({className:'map-label-anchor',html,iconSize:[0,0]})}).addTo(labels);
+  }
+ };
+ map.on('zoomend moveend',sync);map.on('basemap:refresh',()=>drawLabels(map.getZoom()));
  try{
-  const [world,states]=await Promise.all([getJSON('data/countries-50m.json'),getJSON('data/states-10m.json')]);
-  coarse.countries=layer(world,'countries',land);coarse.states=layer(states,'states',thin('#b4b9ad',0.7));sync();
-  getJSON('data/cities-labels.json').then(c=>{cities=c;sync()}).catch(()=>{});
-  // Large-scale outlines arrive after the first paint.
-  getJSON('data/countries-10m.json').then(t=>{fine.countries=layer(t,'countries',land);sync()}).catch(()=>{});
-  getJSON('data/counties-10m.json').then(t=>{fine.counties=layer(t,'counties',thin('#cfd1c6',0.5));sync()}).catch(()=>{});
+  const first=await getJSON('data/countries-50m.json');layers.countries=plan[0][4](first);sync();
+  Promise.all([getJSON('data/cities-labels.json'),getJSON('data/park-labels.json'),getJSON('data/relief.json')]).then(([c,p,r])=>{cities=c;parkLabels=p;relief=r;sync()}).catch(()=>{});
  }catch(error){onError?.(error)}
 }

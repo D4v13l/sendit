@@ -26,16 +26,15 @@ export function findTabId(result){
 }
 
 // A browser renders a JSON response as plain text, sometimes with a title or URL line around it.
-// Take the outermost object or array that parses; the API's own `error` field is surfaced by fetchJSON's caller.
+// Take the outermost object or array that parses; the API's own `error` field is surfaced by the caller.
 const WRAPPER_KEYS=new Set(['text','content','pageText','title','url','tabId']);
 export function extractJSON(text){
  if(typeof text!=='string')return undefined;
  const trimmed=text.trim();let data;
  try{data=JSON.parse(trimmed)}catch{
-  for(const [open,close] of [['[',']'],['{','}']]){
-   const start=trimmed.indexOf(open),end=trimmed.lastIndexOf(close);
-   if(start>=0&&end>start){try{data=JSON.parse(trimmed.slice(start,end+1));break}catch{}}
-  }
+  // Only the outermost value: on a cut-off page an inner fragment such as [] must not pass for an answer.
+  const start=trimmed.search(/[[{]/),end=start<0?-1:trimmed.lastIndexOf(trimmed[start]==='['?']':'}');
+  if(end>start){try{data=JSON.parse(trimmed.slice(start,end+1))}catch{}}
  }
  // A structured tool result such as {"title":…,"text":"{…}"} carries the page inside a string.
  if(data&&!Array.isArray(data)&&typeof data==='object'&&Object.keys(data).length&&Object.keys(data).every(k=>WRAPPER_KEYS.has(k))){
@@ -45,6 +44,38 @@ export function extractJSON(text){
  return data;
 }
 
+const coords=(u,key)=>(u.searchParams.get(key)||'').split(',').filter(Boolean).map(Number);
+// Does this JSON answer this URL? A tab can still show the previous response right after navigating.
+export function answers(url,data){
+ const u=new URL(url);if(data==null||typeof data!=='object')return false;
+ if(!Array.isArray(data)&&data.error===true)return typeof data.reason==='string';
+ if(u.hostname==='api.open-meteo.com'){
+  const lat=coords(u,'latitude'),lon=coords(u,'longitude'),list=Array.isArray(data)?data:[data];
+  if(list.length!==lat.length||(lat.length>1&&!Array.isArray(data)))return false;
+  // Open-Meteo snaps each point to its model grid, so allow a small offset.
+  return list.every((f,i)=>f?.daily&&f?.hourly&&Math.abs(f.latitude-lat[i])<0.3&&Math.abs(f.longitude-lon[i])<0.3);
+ }
+ if(u.hostname==='geocoding-api.open-meteo.com')return !Array.isArray(data)&&'generationtime_ms' in data&&!('daily' in data);
+ if(u.hostname==='router.project-osrm.org'){
+  const n=u.pathname.split('/').pop().split(';').length;
+  return typeof data.code==='string'&&(data.code!=='Ok'||data.durations?.[0]?.length===n);
+ }
+ return false;
+}
+
+// Forecast requests for many points are split so each page stays small enough to read in full.
+// Hourly data dominates: roughly 750 characters per point per forecast day.
+export function forecastChunks(url,budget=40000){
+ const u=new URL(url);if(u.hostname!=='api.open-meteo.com')return null;
+ const lat=coords(u,'latitude'),lon=coords(u,'longitude');if(lat.length<2)return null;
+ const days=Math.max(1,Number(u.searchParams.get('forecast_days'))||16),size=Math.max(1,Math.floor(budget/(days*750)));
+ return chunkUrls(u,lat,lon,size);
+}
+function chunkUrls(u,lat,lon,size){
+ const out=[];for(let i=0;i<lat.length;i+=size){const c=new URL(u);c.searchParams.set('latitude',lat.slice(i,i+size).join(','));c.searchParams.set('longitude',lon.slice(i,i+size).join(','));out.push(c.toString())}
+ return out;
+}
+
 export function createBrowserTransport(mcp,{wait=ms=>new Promise(r=>setTimeout(r,ms))}={}){
  let tabId=null,opened=false,queue=Promise.resolve();
  const call=async(tool,input,timeout)=>{
@@ -52,22 +83,41 @@ export function createBrowserTransport(mcp,{wait=ms=>new Promise(r=>setTimeout(r
   catch(e){throw new BridgeError(e?.code||'upstream_error',e?.message||'Built-in browser call failed')}
  };
  const withTab=input=>tabId==null?input:{...input,tabId};
- const run=async(url,timeout)=>{
-  const host=new URL(url).hostname;if(!HOSTS.has(host))throw new BridgeError('bad_request','Host not allowed: '+host);
-  // Consent prompts and site approvals can hold the first call, so allow well over the HTTP timeout.
-  const limit=Math.max(90000,timeout||0);
+ // Load one URL and read back JSON that answers it.
+ const page=async(url,limit)=>{
   const open=async()=>{const r=await call('preview_start',{url},limit);opened=true;tabId=findTabId(r)};
   if(!opened)await open();
   else{try{await call('navigate',withTab({url}),limit)}catch(e){
    // The viewer may have closed the tab; open a fresh one once.
    if(e.code!=='tool_error')throw e;opened=false;tabId=null;await open();
   }}
-  for(let attempt=0;attempt<3;attempt++){
-   const data=extractJSON(resultText(await call('get_page_text',withTab({}),limit)));
-   if(data!==undefined){if(data&&!Array.isArray(data)&&data.error)throw Error(data.reason||'Data unavailable');return data}
-   await wait(800*(attempt+1));
+  let text='',stale=false;
+  for(const delay of [0,500,1000,1500,2500,4000]){
+   if(delay)await wait(delay);
+   text=resultText(await call('get_page_text',withTab({}),limit));const data=extractJSON(text);
+   if(data!==undefined&&answers(url,data)){if(!Array.isArray(data)&&data.error===true)throw Error(data.reason||'Data unavailable');return data}
+   stale=data!==undefined;
   }
+  const host=new URL(url).hostname,looksJSON=/[[{]/.test(text.slice(0,200));
+  if(stale)throw new BridgeError('stale','The built-in browser kept showing an earlier answer instead of '+host+'.');
+  if(looksJSON&&text.length>2000)throw new BridgeError('too_large','The '+host+' answer ('+text.length.toLocaleString()+' characters) came back cut off.');
   throw new BridgeError('unreadable','The built-in browser did not return readable data for '+host+'.');
+ };
+ // Forecasts for several points, halving a chunk whose page text came back cut off.
+ const forecast=async(url,limit)=>{
+  try{const d=await page(url,limit);return Array.isArray(d)?d:[d]}
+  catch(e){
+   const u=new URL(url),lat=coords(u,'latitude'),lon=coords(u,'longitude');
+   if(e.code!=='too_large'||lat.length<2)throw e;
+   const out=[];for(const c of chunkUrls(u,lat,lon,Math.ceil(lat.length/2)))out.push(...await forecast(c,limit));return out;
+  }
+ };
+ const run=async(url,timeout)=>{
+  const host=new URL(url).hostname;if(!HOSTS.has(host))throw new BridgeError('bad_request','Host not allowed: '+host);
+  // Consent prompts and site approvals can hold the first call, so allow well over the HTTP timeout.
+  const limit=Math.max(90000,timeout||0),chunks=forecastChunks(url);
+  if(!chunks){if(host!=='api.open-meteo.com'||new URL(url).pathname!=='/v1/forecast')return page(url,limit);return (await forecast(url,limit))[0]}
+  const out=[];for(const c of chunks)out.push(...await forecast(c,limit));return out;
  };
  // One tab serves every request, so requests must not overlap.
  return (url,timeout)=>{const next=queue.catch(()=>{}).then(()=>run(url,timeout));queue=next;return next};
