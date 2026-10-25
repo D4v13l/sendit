@@ -59,7 +59,7 @@ export function answers(url,data){
  if(u.hostname==='geocoding-api.open-meteo.com')return !Array.isArray(data)&&'generationtime_ms' in data&&!('daily' in data);
  if(u.hostname==='router.project-osrm.org'){
   const n=u.pathname.split('/').pop().split(';').length;
-  return typeof data.code==='string'&&(data.code!=='Ok'||data.durations?.[0]?.length===n);
+  return typeof data.code==='string'&&(data.code!=='Ok'||(data.durations||data.distances)?.[0]?.length===n);
  }
  return false;
 }

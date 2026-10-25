@@ -196,3 +196,28 @@ test('hillshade darkens only slopes facing away from the light',()=>{
 });
 
 test('route plates appear only when zoomed in',()=>{assert.ok(!showRoadLabel(3,6)&&showRoadLabel(3,7)&&!showRoadLabel(6,7)&&showRoadLabel(6,8))});
+
+import {driveTimes,secondsFor,AVERAGE_MPH,CIRCUITY} from '../src/drive.mjs';
+import {elevationBands,BAND_M} from '../src/bands.mjs';
+
+test('drive times are road distance at a 60 mph average, with a marked straight-line fallback',async()=>{
+ assert.equal(AVERAGE_MPH,60);assert.equal(secondsFor(96.56064),3600);
+ const origin={lat:47.606,lon:-122.332},regions=[{id:'a',road:[47.392,-121.399]},{id:'b',road:[46.75,-121.81]}];
+ const road=async url=>{assert.match(url,/annotations=distance/);return {code:'Ok',distances:[[0,85000,140000]],sources:[{distance:20}],destinations:[{distance:20},{distance:50},{distance:30}]}};
+ const r=await driveTimes(road,origin,regions);
+ assert.deepEqual(r.a,{seconds:secondsFor(85),km:85,basis:'road'});assert.equal(r.b.basis,'road');
+ const down=await driveTimes(async()=>{throw Error('offline')},origin,regions);
+ assert.equal(down.a.basis,'estimate');assert.ok(Math.abs(down.a.km-74*CIRCUITY)<4,'straight line x circuity');
+ const snapped=await driveTimes(async()=>({code:'Ok',distances:[[0,85000,140000]],sources:[{distance:20}],destinations:[{distance:20},{distance:50},{distance:25000}]}),origin,regions);
+ assert.equal(snapped.a.basis,'road');assert.equal(snapped.b.basis,'estimate','gateway far from any road falls back');
+ assert.ok(answers('https://router.project-osrm.org/table/v1/driving/1,2;3,4;5,6?sources=0&annotations=distance',{code:'Ok',distances:[[0,1,2]]}));
+});
+
+test('elevation bands split at 3,000 ft only when both sides carry real terrain',()=>{
+ const grid=(fn)=>Array.from({length:400},(_,i)=>{const x=i%20,y=Math.floor(i/20);return {e:fn(x,y),lat:47+y/100,lon:-121+x/100,km:Math.hypot(x-10,y-10)}});
+ const mixed=elevationBands(grid(x=>400+x*60));
+ assert.ok(mixed.below&&mixed.above);assert.ok(mixed.below.m<BAND_M&&mixed.above.m>=BAND_M);
+ assert.equal(mixed.minFt,Math.round(400*3.28084));assert.ok(Math.abs(mixed.below.share+mixed.above.share-1)<0.02);
+ const low=elevationBands(grid(x=>x===19?1000:300));assert.ok(low.below&&!low.above,'5% above is not enough for its own band');
+ assert.equal(elevationBands(grid(()=>-5)),null,'open water has no bands');
+});

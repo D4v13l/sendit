@@ -6,12 +6,14 @@ import {createRequire} from 'node:module';
 import {topology} from 'topojson-server';
 import {PNG} from 'pngjs';
 import jpeg from 'jpeg-js';
-import {plan as terrainPlan,tilesOf,tileLat,tileLon} from './terrain-plan.mjs';
+import {plan as terrainPlan,tilesOf,tileLat,tileLon,clusters as terrainClusters} from './terrain-plan.mjs';
+import {elevationBands} from './src/bands.mjs';
+import {regions as curatedRegions,distanceKm} from '../public/catalog.mjs';
 import {hillshade,decodeTerrarium} from './src/hillshade.mjs';
 const require=createRequire(import.meta.url);
 const here=new URL('./',import.meta.url),pub=new URL('../public/',import.meta.url),dist=new URL('dist/',here);
 const shared=['engine.mjs','trips.mjs','services.mjs','catalog.mjs','world-catalog.mjs','expanded-catalog.mjs'];
-const own=['app.mjs','bridge.mjs','basemap.mjs','places.mjs','notices.mjs','gradient.mjs'];
+const own=['app.mjs','bridge.mjs','basemap.mjs','places.mjs','notices.mjs','gradient.mjs','drive.mjs'];
 
 await rm(dist,{recursive:true,force:true});await mkdir(new URL('data/',dist),{recursive:true});
 for(const f of shared)await copyFile(new URL(f,pub),new URL(f,dist));
@@ -78,7 +80,8 @@ await writeFile(new URL('data/road-labels.json',dist),JSON.stringify([...roadLab
 // Light hillshade from AWS Terrain Tiles (fetch-terrain.mjs). One image per layer, tile-aligned in Web Mercator.
 // The world layer is left blank where a sharper cluster layer covers it, so shading is never doubled.
 await mkdir(new URL('data/hillshade/',dist),{recursive:true});
-const terrain=terrainPlan(),detail=terrain.filter(l=>l.id!=='world'),relief=[];
+const terrain=terrainPlan(),detail=terrain.filter(l=>l.id!=='world'),relief=[],bands={};
+const members=Object.fromEntries(terrainClusters().map(c=>[c.id,c.ids]));
 for(const l of terrain){
  const cols=l.x1-l.x0+1,rows=l.y1-l.y0+1,w=cols*256,h=rows*256,elevation=new Float32Array(w*h);
  for(const [z,x,y] of tilesOf(l)){
@@ -86,6 +89,16 @@ for(const l of terrain){
   for(let py=0;py<256;py++)for(let px=0;px<256;px++){const i=(py*256+px)*4;elevation[(oy+py)*w+ox+px]=decodeTerrarium(png.data[i],png.data[i+1],png.data[i+2])}
  }
  const metersPerPixel=row=>156543.03392*Math.cos(tileLat(l.y0+(row+0.5)/256,l.z)*Math.PI/180)/2**l.z;
+ // Elevation bands for each curated region in this cluster, from terrain within 10 miles.
+ for(const id of members[l.id]||[]){
+  const r=curatedRegions.find(x=>x.id===id),n=2**l.z,cx=((r.point[1]+180)/360*n-l.x0)*256;
+  const lr=r.point[0]*Math.PI/180,cy=((1-Math.log(Math.tan(lr)+1/Math.cos(lr))/Math.PI)/2*n-l.y0)*256,reach=Math.ceil(16093/metersPerPixel(Math.round(cy)))+1,samples=[];
+  for(let py=Math.max(0,Math.floor(cy-reach));py<=Math.min(h-1,Math.ceil(cy+reach));py++)for(let px=Math.max(0,Math.floor(cx-reach));px<=Math.min(w-1,Math.ceil(cx+reach));px++){
+   const lat=tileLat(l.y0+(py+0.5)/256,l.z),lon=tileLon(l.x0+(px+0.5)/256,l.z),km=distanceKm(r.point,[lat,lon]);
+   if(km<=16.09)samples.push({e:elevation[py*w+px],lat,lon,km});
+  }
+  bands[id]=elevationBands(samples);
+ }
  const shade=hillshade(elevation,w,h,metersPerPixel,{zFactor:l.z<=4?10:3});
  if(l.id==='world')for(const c of detail){const k=256/2**(c.z-l.z);for(let y=Math.floor(c.y0*k);y<Math.ceil((c.y1+1)*k);y++)shade.fill(255,y*w+Math.floor(c.x0*k),y*w+Math.ceil((c.x1+1)*k))}
  const rgba=Buffer.alloc(w*h*4);for(let i=0;i<w*h;i++){rgba[i*4]=rgba[i*4+1]=rgba[i*4+2]=shade[i];rgba[i*4+3]=255}
@@ -93,11 +106,12 @@ for(const l of terrain){
  relief.push({url:`data/hillshade/${l.id}.jpg`,bounds:[[+tileLat(l.y1+1,l.z).toFixed(5),+tileLon(l.x0,l.z).toFixed(5)],[+tileLat(l.y0,l.z).toFixed(5),+tileLon(l.x1+1,l.z).toFixed(5)]]});
 }
 await writeFile(new URL('data/hillshade-index.json',dist),JSON.stringify(relief));
+await writeFile(new URL('data/elevation-bands.json',dist),JSON.stringify(bands));
 
 // Published path -> source and content type, for the Artifact tool's `files` map.
 const files={};
 for(const f of [...shared,...own])files[f]={from:'dist/'+f,contentType:'text/javascript'};
-for(const f of ['countries-50m','countries-10m','states-10m','cities-search','cities-labels','water-major','water-minor','water-detail','parks','relief','park-labels','roads','road-labels','hillshade-index'])files['data/'+f+'.json']={from:'dist/data/'+f+'.json',contentType:'application/json'};
+for(const f of ['countries-50m','countries-10m','states-10m','cities-search','cities-labels','water-major','water-minor','water-detail','parks','relief','park-labels','roads','road-labels','hillshade-index','elevation-bands'])files['data/'+f+'.json']={from:'dist/data/'+f+'.json',contentType:'application/json'};
 for(const r of relief)files[r.url]={from:'dist/'+r.url,contentType:'image/jpeg'};
 await writeFile(new URL('files.json',dist),JSON.stringify(files,null,1));
 console.log(`Built dist/: ${Object.keys(files).length} files plus index.html; ${rows.length} search places.`);
