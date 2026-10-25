@@ -11,6 +11,7 @@ Outdoor trip planning, a location database, and reusable Adventure Projects data
 | Good Outside | [apps/good-outside](apps/good-outside) | Main trip planner, weather ranking, map, bookmarks and location directory |
 | Location backend | [apps/good-outside/backend](apps/good-outside/backend) | D1 location API, provider ingestion, refresh jobs and MCP tools |
 | Location snapshots | [apps/good-outside/data](apps/good-outside/data) | 44,692 source records in provider metadata; full snapshots are in R2 |
+| Artifact edition | [apps/good-outside/artifact](apps/good-outside/artifact) | Good Outside built as a Claude Artifact: curated regions, tile-free map, live data via the Claude desktop app |
 | Trail Desk | [apps/trail-desk](apps/trail-desk) | Separate Adventure Projects endpoint explorer and route preview |
 | API client | [packages/adventure-projects-client](packages/adventure-projects-client) | Dependency-free JS SDK, TypeScript declarations, demo and tests |
 | Architecture / handoff | [docs](docs) | Current boundaries, setup, integration roadmap and validation |

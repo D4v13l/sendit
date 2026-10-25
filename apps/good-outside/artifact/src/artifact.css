@@ -1,0 +1,5 @@
+/* Artifact additions: tile-free map ground and city labels drawn over vector borders. */
+#map{background:#dbe5e3}
+.leaflet-tooltip.city-label{background:none;border:0;box-shadow:none;padding:0;font-size:11px;line-height:1;color:#3c463f;text-shadow:0 0 3px #f3f1e6,0 0 2px #f3f1e6}
+.leaflet-tooltip.city-label::before{display:none}
+.brand{color:var(--paper)}

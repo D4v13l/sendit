@@ -1,0 +1,16 @@
+{
+  "name": "good-outside-artifact",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Builds Good Outside as a self-contained Claude Artifact page.",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "devDependencies": {
+    "all-the-cities": "3.1.0",
+    "us-atlas": "3.0.1",
+    "world-atlas": "2.0.2"
+  }
+}
