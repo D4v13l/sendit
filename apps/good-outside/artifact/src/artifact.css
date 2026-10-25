@@ -12,3 +12,4 @@
 .map-label.left{transform:translate(calc(-100% + 3px),-50%);padding-left:0;padding-right:9px}
 .map-label.city.left::before{left:auto;right:0}
 .map-label.peak.left::before{left:auto;right:-1px}
+.list-note{margin:14px 0 0}

@@ -6,7 +6,7 @@ import {topology} from 'topojson-server';
 const require=createRequire(import.meta.url);
 const here=new URL('./',import.meta.url),pub=new URL('../public/',import.meta.url),dist=new URL('dist/',here);
 const shared=['engine.mjs','trips.mjs','services.mjs','catalog.mjs','world-catalog.mjs','expanded-catalog.mjs'];
-const own=['app.mjs','bridge.mjs','basemap.mjs','places.mjs'];
+const own=['app.mjs','bridge.mjs','basemap.mjs','places.mjs','notices.mjs'];
 
 await rm(dist,{recursive:true,force:true});await mkdir(new URL('data/',dist),{recursive:true});
 for(const f of shared)await copyFile(new URL(f,pub),new URL(f,dist));
@@ -20,7 +20,6 @@ const pkg=name=>new URL('node_modules/'+name+'/',here);
 await copyFile(new URL('countries-50m.json',pkg('world-atlas')),new URL('data/countries-50m.json',dist));
 await copyFile(new URL('countries-10m.json',pkg('world-atlas')),new URL('data/countries-10m.json',dist));
 await copyFile(new URL('states-10m.json',pkg('us-atlas')),new URL('data/states-10m.json',dist));
-await copyFile(new URL('counties-10m.json',pkg('us-atlas')),new URL('data/counties-10m.json',dist));
 
 // GeoNames rows: [name, country, adminCode, population, lat, lon], most populous first.
 const rows=require('all-the-cities').filter(c=>c.population>=1000&&c.name)
@@ -62,6 +61,6 @@ await writeFile(new URL('data/park-labels.json',dist),JSON.stringify(parks.featu
 // Published path -> source and content type, for the Artifact tool's `files` map.
 const files={};
 for(const f of [...shared,...own])files[f]={from:'dist/'+f,contentType:'text/javascript'};
-for(const f of ['countries-50m','countries-10m','states-10m','counties-10m','cities-search','cities-labels','water-major','water-minor','water-detail','parks','relief','park-labels'])files['data/'+f+'.json']={from:'dist/data/'+f+'.json',contentType:'application/json'};
+for(const f of ['countries-50m','countries-10m','states-10m','cities-search','cities-labels','water-major','water-minor','water-detail','parks','relief','park-labels'])files['data/'+f+'.json']={from:'dist/data/'+f+'.json',contentType:'application/json'};
 await writeFile(new URL('files.json',dist),JSON.stringify(files,null,1));
 console.log(`Built dist/: ${Object.keys(files).length} files plus index.html; ${rows.length} search places.`);

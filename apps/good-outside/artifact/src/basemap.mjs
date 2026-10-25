@@ -42,22 +42,28 @@ const feet=m=>Math.round(m*3.28084).toLocaleString()+' ft';
 export async function addBasemap(L,topojson,map,{onError,obstacles=()=>[]}={}){
  const renderer=L.canvas({padding:0.3});
  const pane=map.createPane('basemapLabels');pane.style.zIndex=450;pane.style.pointerEvents='none';
- const land={renderer,interactive:false,stroke:true,color:'#9aa595',weight:0.8,fill:true,fillColor:'#f3f1e6',fillOpacity:1};
- const line=(color,weight)=>({renderer,interactive:false,fill:false,color,weight});
- const lake={renderer,interactive:false,stroke:true,color:'#b3c8c8',weight:0.5,fill:true,fillColor:'#dbe5e3',fillOpacity:1};
- const park={renderer,interactive:false,stroke:true,color:'#4f8a5f',weight:1,opacity:0.7,fill:true,fillColor:'#6fa77a',fillOpacity:0.18};
+ // Each edge is drawn once: land is an unstroked fill, and coastlines and borders come from
+ // topology meshes, so shared borders and coasts are never traced twice in different colours.
+ const smooth={renderer,interactive:false,smoothFactor:1.5,lineCap:'round',lineJoin:'round'};
+ const land={...smooth,stroke:false,fill:true,fillColor:'#f3f1e6',fillOpacity:1};
+ const line=(color,weight,opacity=1)=>({...smooth,fill:false,color,weight,opacity});
+ const lake={...smooth,stroke:false,fill:true,fillColor:'#dbe5e3',fillOpacity:1};
+ const park={...smooth,stroke:true,color:'#5b9467',weight:0.8,opacity:0.65,fill:true,fillColor:'#6fa77a',fillOpacity:0.16};
  const geo=(topo,key,style)=>L.geoJSON(topojson.feature(topo,topo.objects[key]),{style});
+ const mesh=(topo,key,filter,style)=>L.geoJSON(topojson.mesh(topo,topo.objects[key],filter),{style});
+ const countries=t=>L.featureGroup([geo(t,'countries',land),mesh(t,'countries',(a,b)=>a===b,line('#a9bab7',0.7)),mesh(t,'countries',(a,b)=>a!==b,line('#a3a596',0.9))]);
+ const river=(color,weight)=>line(color,weight,0.9);
  const layers={},labels=L.layerGroup().addTo(map);let cities=[],parkLabels=[],relief={peaks:[],ranges:[]};
  // Each layer: file, minimum zoom, maximum zoom, and how to build it once loaded.
  const plan=[
-  ['countries','data/countries-50m.json',0,5.99,t=>geo(t,'countries',land)],
-  ['countriesFine','data/countries-10m.json',6,99,t=>geo(t,'countries',land)],
+  ['countries','data/countries-50m.json',0,5.99,countries],
+  ['countriesFine','data/countries-10m.json',6,99,countries],
   ['parks','data/parks.json',5,99,t=>geo(t,'parks',park)],
-  ['waterMajor','data/water-major.json',3,99,t=>L.featureGroup([geo(t,'lakes',lake),geo(t,'rivers',line('#6f9cae',1.3))])],
-  ['waterMinor','data/water-minor.json',6,99,t=>L.featureGroup([geo(t,'lakes',lake),geo(t,'rivers',line('#7ea8b8',1))])],
-  ['waterDetail','data/water-detail.json',8,99,t=>L.featureGroup([geo(t,'lakes',lake),geo(t,'rivers',line('#8cb2c0',0.8))])],
-  ['counties','data/counties-10m.json',8,99,t=>geo(t,'counties',{...line('#d8d8cc',0.5),dashArray:'2 3'})],
-  ['states','data/states-10m.json',3,99,t=>geo(t,'states',line('#b4b9ad',0.7))],
+  ['waterMajor','data/water-major.json',4,99,t=>L.featureGroup([geo(t,'lakes',lake),geo(t,'rivers',river('#86aebd',1.2))])],
+  ['waterMinor','data/water-minor.json',7,99,t=>L.featureGroup([geo(t,'lakes',lake),geo(t,'rivers',river('#86aebd',0.9))])],
+  ['waterDetail','data/water-detail.json',9,99,t=>L.featureGroup([geo(t,'lakes',lake),geo(t,'rivers',river('#93b7c4',0.7))])],
+  // Interior state borders only; the coast is already drawn with the countries.
+  ['states','data/states-10m.json',3,99,t=>mesh(t,'states',(a,b)=>a!==b,line('#c1c4b6',0.8))],
  ];
  const loading=new Set();
  const ensure=([key,file,,,build])=>{if(layers[key]||loading.has(key))return;loading.add(key);getJSON(file).then(t=>{layers[key]=build(t);sync()}).catch(()=>{}).finally(()=>loading.delete(key))};

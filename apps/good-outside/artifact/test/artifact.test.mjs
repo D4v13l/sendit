@@ -140,3 +140,18 @@ test('long forecast requests are chunked and cut-off pages are split',async()=>{
  assert.deepEqual(loaded,[3,2,1,3,2,1,1]);
  await assert.rejects(createBrowserTransport(fakeBrowser(u=>meteo(u).slice(0,-8).padEnd(2100,' ')).mcp,{wait:async()=>{}})(F+'47&longitude=-121'),e=>e.code==='too_large');
 });
+
+import {closureNotice,managerName} from '../src/notices.mjs';
+import {regions as curatedRegions} from '../../public/catalog.mjs';
+
+test('closure links point at the managing agency for every curated region',()=>{
+ const byId=Object.fromEntries(curatedRegions.map(r=>[r.id,closureNotice(r)]));
+ assert.equal(byId.snoqualmie.url,'https://www.fs.usda.gov/r06/mbs/alerts');assert.equal(byId.snoqualmie.managerUrl,'https://www.fs.usda.gov/r06/mbs/recreation');
+ assert.equal(byId['snowy-range'].url,'https://www.fs.usda.gov/r02/mbrtb/alerts');
+ assert.equal(byId.rainier.url,'https://www.nps.gov/mora/planyourvisit/conditions.htm');assert.equal(byId.rainier.managerUrl,'https://www.nps.gov/mora/planyourvisit/paradise.htm');
+ assert.equal(byId.catskills.url,'https://dec.ny.gov/things-to-do/hiking/catskill-backcountry-information');assert.equal(byId.catskills.derived,false);
+ assert.deepEqual([byId.teanaway.url,byId.teanaway.label],['https://www.dnr.wa.gov/Teanaway','Washington DNR notices']);
+ assert.equal(byId['blue-mountains'].label,'NSW National Parks notices');
+ for(const [id,n] of Object.entries(byId)){assert.match(n.url,/^https:\/\//,id);assert.ok(n.managerUrl,id);assert.doesNotMatch(n.label,/^[a-z0-9.-]+\.[a-z]{2,} notices$/,id+' has no manager name')}
+ assert.equal(managerName('https://www.parks.ca.gov/?page_id=471'),'California State Parks');
+});
