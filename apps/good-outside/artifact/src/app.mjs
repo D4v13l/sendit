@@ -1,19 +1,22 @@
-import {destinationToday,nearTermStart,weatherGrid,makeBookmark,validBookmark,topPicks,campsiteSearch} from './trips.mjs';import {regions as curated,distanceKm} from './catalog.mjs';import {createRegionClient} from './services.mjs';import {SERVER,BridgeError,isBlocking,createBrowserTransport} from './bridge.mjs';import {addBasemap,ATTRIBUTION} from './basemap.mjs';import {loadPlaces,searchPlaces,placeLabel} from './places.mjs';import {closureNotice} from './notices.mjs';import {dateKey,dates,tier,evaluate} from './engine.mjs';
+import {destinationToday,nearTermStart,weatherGrid,makeBookmark,validBookmark,topPicks,campsiteSearch} from './trips.mjs';import {regions as curated,distanceKm} from './catalog.mjs';import {createRegionClient} from './services.mjs';import {SERVER,BridgeError,isBlocking,createBrowserTransport} from './bridge.mjs';import {createBasemap,ATTRIBUTION} from './basemap.mjs';import {gradientGrid,canvasSize,paintGradient,SCORE} from './gradient.mjs';import {loadPlaces,searchPlaces,placeLabel} from './places.mjs';import {closureNotice} from './notices.mjs';import {dateKey,dates,tier,evaluate} from './engine.mjs';
 const $=id=>document.getElementById(id);const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let saved={};try{saved=JSON.parse(localStorage.getItem('good-outside-v1'))||{}}catch{}
 let state={dateMode:['today','tomorrow','weekend','custom'].includes(saved.dateMode)?saved.dateMode:(saved.start&&saved.start!==dateKey()?'custom':'today'),origin:saved.origin||null,activity:saved.activity||'Hiking',start:saved.start>=dateKey()?saved.start:dateKey(),days:Math.max(1,Math.min(7,Number(saved.days)||1)),camping:saved.camping||'none'};
 if(!['Hiking','Climbing','Biking','Bikepacking','Backpacking','Skiing','Backcountry skiing'].includes(state.activity))state.activity='Hiking';if(!['none','car','backcountry'].includes(state.camping))state.camping='none';
 if(state.origin&&(!Number.isFinite(state.origin.lat)||!Number.isFinite(state.origin.lon)||Math.abs(state.origin.lat)>90||Math.abs(state.origin.lon)>180))state.origin=null;
-let catalog=[],regions=[],weather={},routes={},weatherAt=null,busy=false,revision=0,map,markers=[],originMarker,searchRevision=0;let mapError=false;
+let catalog=[],regions=[],weather={},routes={},weatherAt=null,busy=false,revision=0,map,markers=[],originMarker,searchRevision=0;let mapError=false;let basemap=null,surface={grid:null,weather:null,rev:0};
 // Live weather, drive times and postcode lookup run through the Claude desktop app's built-in browser.
 let bridge=null,bridgeOk=false;try{bridgeOk=localStorage.getItem('good-outside-bridge-ok')==='1'}catch{}
 const mcpReady=(window.claude?.use?window.claude.use('mcp'):Promise.resolve(null)).then(m=>{bridge=m?createBrowserTransport(m):null}).catch(()=>{bridge=null});
 // Days from today through the trip's last day, plus one for destinations ahead of this device's date.
 function forecastDays(){return Math.max(2,Math.min(16,Math.round((Date.parse(state.start+'T12:00:00')-Date.parse(dateKey()+'T12:00:00'))/864e5)+state.days+1))}
-function trimForecast(url){const u=new URL(url);if(u.hostname==='api.open-meteo.com'&&u.searchParams.has('forecast_days'))u.searchParams.set('forecast_days',String(forecastDays()));return u.toString()}
+const needsNights=()=>state.camping!=='none'&&state.days>1;
+function trimForecast(url){const u=new URL(url);if(u.hostname==='api.open-meteo.com'&&u.searchParams.has('forecast_days')){u.searchParams.set('forecast_days',String(forecastDays()));if(!needsNights())u.searchParams.delete('hourly')}return u.toString()}
+// Forecasts fetched without hourly data carry an empty hourly block, which evaluate() accepts for day trips.
+const withHourly=data=>{for(const f of Array.isArray(data)?data:[data])if(f?.daily&&!f.hourly)f.hourly={time:[],temperature_2m:[]};return data};
 // A forecast fetched for earlier dates may not reach a newly chosen trip.
-const covers=f=>!f?.daily?.time||dates(state.start,state.days).every(d=>f.daily.time.includes(d));
-const transport=async(url,timeout)=>{await mcpReady;if(!bridge)throw new BridgeError('server_not_connected','Built-in browser unavailable');const data=await bridge(trimForecast(url),timeout);if(!bridgeOk){bridgeOk=true;try{localStorage.setItem('good-outside-bridge-ok','1')}catch{}}return data};
+const covers=f=>!f?.daily?.time||(dates(state.start,state.days).every(d=>f.daily.time.includes(d))&&(!needsNights()||f.hourly?.time?.length>0));
+const transport=async(url,timeout)=>{await mcpReady;if(!bridge)throw new BridgeError('server_not_connected','Built-in browser unavailable');const data=withHourly(await bridge(trimForecast(url),timeout));if(!bridgeOk){bridgeOk=true;try{localStorage.setItem('good-outside-bridge-ok','1')}catch{}}return data};
 const client=createRegionClient(transport);
 function liveDataMessage(error){const code=error?.code;
  if(['stale','too_large','unreadable'].includes(code))return error.message+' Tap ↻ to try again.';
@@ -40,11 +43,11 @@ function render(){
  updateMap(visible);renderPicks();if(gridMode)renderGrid();for(const el of document.querySelectorAll('[data-region]'))el.onclick=()=>showDetail(el.dataset.region);
 }
 function initMap(){if(!window.L){mapError=true;$('map').innerHTML='<p style="padding:25px">Map unavailable. All regions and source links are still accessible in the list.</p>';return}map=L.map('map',{scrollWheelZoom:false}).setView([25,-20],2);initBasemap();$('fit').onclick=()=>{exitGrid(false);render();fitMap()};gridGroup=L.layerGroup().addTo(map);map.on('moveend',()=>{clearTimeout(gridTimer);if(map.getZoom()<10){if(gridMode){exitGrid(false);render()}return}const center=map.getCenter(),point=[center.lat,center.lng];if(gridMode&&gridCenter&&distanceKm(point,gridCenter)<1)return;gridTimer=setTimeout(()=>loadGrid(point),Math.max(400,5000-(Date.now()-lastGridAt)))});}
-function updateMap(visible){if(!map)return;markers.forEach(m=>m.remove());markers=[];const show=gridMode?[]:state.origin?visible:catalog.map(r=>({...r,assessment:{level:'unknown',label:'Unranked'}}));show.forEach((r,i)=>{const m=L.marker(r.point,{icon:L.divIcon({html:`<div class="map-marker ${r.assessment.level}">${state.origin?i+1:'·'}</div>`,className:'custom-icon',iconSize:[30,30],iconAnchor:[15,15]}),title:r.name+' — '+r.assessment.label,keyboard:true}).addTo(map).bindTooltip(esc(r.name)+' · '+r.assessment.label);m.on('click',()=>showDetail(r.id));markers.push(m)});if(originMarker)originMarker.remove();if(state.origin)originMarker=L.marker([state.origin.lat,state.origin.lon],{icon:L.divIcon({html:'<div class="origin-marker"></div>',className:'custom-icon',iconSize:[14,14]}),title:'Starting location'}).addTo(map).bindTooltip(esc(state.origin.name));map.fire('basemap:refresh');}
-function fitMap(){if(!map||gridMode)return;const visible=listed();if(state.origin&&!visible.length){map.setView([state.origin.lat,state.origin.lon],8);return}if(!state.origin){map.setView([25,-20],2);return}const coords=visible.map(r=>r.point);if(state.origin)coords.push([state.origin.lat,state.origin.lon]);map.fitBounds(coords,{padding:[35,35],maxZoom:9});}
+function updateMap(visible){if(!map)return;markers.forEach(m=>m.remove());markers=[];const show=[];show.forEach((r,i)=>{const m=L.marker(r.point,{icon:L.divIcon({html:`<div class="map-marker ${r.assessment.level}">${state.origin?i+1:'·'}</div>`,className:'custom-icon',iconSize:[30,30],iconAnchor:[15,15]}),title:r.name+' — '+r.assessment.label,keyboard:true}).addTo(map).bindTooltip(esc(r.name)+' · '+r.assessment.label);m.on('click',()=>showDetail(r.id));markers.push(m)});if(originMarker)originMarker.remove();if(state.origin)originMarker=L.marker([state.origin.lat,state.origin.lon],{icon:L.divIcon({html:'<div class="origin-marker"></div>',className:'custom-icon',iconSize:[14,14]}),title:'Starting location'}).addTo(map).bindTooltip(esc(state.origin.name));map.fire('basemap:refresh');}
+function fitMap(){if(!map||gridMode)return;if(state.origin){const b=gradientGrid(state.origin).bounds;map.fitBounds([[b.south,b.west],[b.north,b.east]],{padding:[10,10],maxZoom:8});return}const visible=listed();if(state.origin&&!visible.length){map.setView([state.origin.lat,state.origin.lon],8);return}if(!state.origin){map.setView([25,-20],2);return}const coords=visible.map(r=>r.point);if(state.origin)coords.push([state.origin.lat,state.origin.lon]);map.fitBounds(coords,{padding:[35,35],maxZoom:9});}
 async function load(force=false){
  if(!state.origin){render();return}
- exitGrid(false);const rev=++revision,origin={...state.origin};regions=[];catalog=[];busy=true;weather={};routes={};weatherAt=null;render();fitMap();
+ exitGrid(false);if(!surface.grid||surface.grid.points[0].id!==gradientGrid(state.origin).points[0].id)clearSurface();const rev=++revision,origin={...state.origin};regions=[];catalog=[];busy=true;weather={};routes={};weatherAt=null;render();fitMap();
  const local=nearby(origin,state.activity);catalog=local;regions=local;
  if(!local.length){busy=false;render();notice('No '+state.activity.toLowerCase()+' regions near '+origin.name+' in this edition’s 49 curated regions. Zoom in for point forecasts.',true);return true}
  notice('Checking '+local.length+' nearby regions for '+origin.name+'…');
@@ -54,7 +57,7 @@ async function load(force=false){
  const first=Object.values(weather)[0];if(first?.timezone){state.origin.timezone=first.timezone;sync();save()}
  const errors=results.map((r,i)=>r.status==='rejected'?(i===0?'Weather unavailable':'Driving estimates unavailable'):null).filter(Boolean);
  const live=results.map(r=>r.status==='rejected'?liveDataMessage(r.reason):null).find(Boolean);
- render();fitMap();notice(live?live+' Missing data stays unknown.':errors.length?errors.join('. ')+'. Refresh to retry; missing data stays unknown.':`Updated ${new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${origin.name} · Approximate gateway drives, without traffic.`,!!errors.length);return true;
+ render();fitMap();notice(live?live+' Missing data stays unknown.':errors.length?errors.join('. ')+'. Refresh to retry; missing data stays unknown.':`Updated ${new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${origin.name} · Approximate gateway drives, without traffic.`,!!errors.length);if(!live)loadSurface(force);return true;
 }
 async function chooseOrigin(origin){++searchRevision;state.origin=origin;sync();save();$('places').hidden=true;await load();}
 $('controls').onsubmit=async e=>{e.preventDefault();const query=$('origin').value.trim();if(query.length<2){notice('Enter at least two characters for a town or city.',true);return}const rev=++searchRevision;notice('Finding matching places…');$('places').hidden=true;
@@ -66,7 +69,7 @@ $('controls').onsubmit=async e=>{e.preventDefault();const query=$('origin').valu
   catch(error){if(rev!==searchRevision)return;notice(liveDataMessage(error)||'Location search unavailable. Try a nearby town name.',true);return}}
  if(!results.length){notice('No location found. Try a nearby town.',true);return}
  $('places').innerHTML=results.map((p,i)=>`<button type="button" data-place="${i}">${esc(p.label)}</button>`).join('');$('places').hidden=false;notice('Choose the matching starting location.');$('places').querySelectorAll('button').forEach(b=>b.onclick=()=>chooseOrigin(results[+b.dataset.place].origin))};
-$('activity').onchange=()=>{state.activity=$('activity').value;save();load()};$('trip').onclick=()=>{sync();$('settings').showModal()};$('settings-form').onsubmit=e=>{if(e.submitter?.value!=='apply')return;if(!$('start').value||$('start').value<destinationToday(state.origin?.timezone)){e.preventDefault();$('start').reportValidity();return}state.start=$('start').value;state.dateMode=$('start').dataset.dateMode||'custom';state.days=+$('duration').value;state.camping=$('camping').value;sync();save();render();if(state.origin&&!busy&&Object.keys(weather).length&&!Object.values(weather).every(covers))load(true);else if(gridMode&&gridCenter&&!Object.values(gridWeather).every(covers))loadGrid(gridCenter,true);};
+$('activity').onchange=()=>{state.activity=$('activity').value;save();drawSurface();load()};$('trip').onclick=()=>{sync();$('settings').showModal()};$('settings-form').onsubmit=e=>{if(e.submitter?.value!=='apply')return;if(!$('start').value||$('start').value<destinationToday(state.origin?.timezone)){e.preventDefault();$('start').reportValidity();return}state.start=$('start').value;state.dateMode=$('start').dataset.dateMode||'custom';state.days=+$('duration').value;state.camping=$('camping').value;sync();save();render();if(state.origin&&!busy&&Object.keys(weather).length&&!Object.values(weather).every(covers))load(true);else{if(surface.weather&&!Object.values(surface.weather).every(covers))loadSurface(true);else drawSurface();if(gridMode&&gridCenter&&!Object.values(gridWeather).every(covers))loadGrid(gridCenter,true)}};
 $('refresh').onclick=()=>{if(!busy)load(true)};$('about').onclick=()=>$('method').showModal();$('close-method').onclick=()=>$('method').close();$('close-detail').onclick=()=>{detailSampleId=null;$('detail').close()};document.addEventListener('click',e=>{if(!e.target.closest('.origin-wrap'))$('places').hidden=true});
 function showDetail(id){detailSampleId=null;detailRegionId=id;const r=catalog.find(r=>r.id===id);if(!r){notice("This saved source record is no longer in the current results. Search nearby again.",true);return}const a=assessment(r),f=weather[id],ski=state.activity.toLowerCase().includes('skiing'),notice=closureNotice(r);$('detail-title').textContent=r.name;
 const driveLine=state.origin?(Number.isFinite(routes[id])?`~${drive(routes[id])} modeled drive to ${r.gateway}. ${routes[id]>14400?'Outside the four-hour trip tiers. ':''}No traffic, closures or trailhead segment included.`:'Driving time unavailable. No driving tier can be confirmed.'):'Choose an origin to estimate driving time.';
@@ -107,7 +110,24 @@ function renderBookmarks(){updateBookmarkCount();$('save-search').disabled=!stat
 }
 $('saved-trips').onclick=()=>{$('bookmark-status').textContent='';renderBookmarks();$('bookmarks-dialog').showModal()};$('close-bookmarks').onclick=()=>$('bookmarks-dialog').close();$('save-search').onclick=()=>bookmarkCurrent(null,gridMode?gridCenter:null);
 
-function initBasemap(){map.attributionControl.addAttribution(ATTRIBUTION);$('map-language').textContent=' · Offline basemap';$('map-language').title='Map data ships with this page: borders, water, US national park units, peaks and ranges. No roads, trails or terrain shading.';addBasemap(L,window.topojson,map,{onError:()=>{$('map-language').textContent=' · Map background unavailable'},obstacles:()=>[...markers.map(m=>({...map.latLngToContainerPoint(m.getLatLng()),r:18}))]})}
+// Trip-weather surface over the search area.
+function clearSurface(){++surface.rev;surface={...surface,grid:null,weather:null};basemap?.setWeather(null);$('weather-key').hidden=true}
+async function loadSurface(force=false){
+ if(!state.origin)return;const rev=++surface.rev,grid=gradientGrid(state.origin);surface.grid=grid;
+ $('weather-key').hidden=false;if(!surface.weather)$('weather-key-status').textContent='Loading the weather map…';
+ try{const data=await client.weather(grid.points,force);if(rev!==surface.rev)return;surface.weather=data;drawSurface()}
+ catch(error){if(rev!==surface.rev)return;$('weather-key-status').textContent=liveDataMessage(error)||'Weather map unavailable. Tap ↻ to retry.'}
+}
+function drawSurface(){
+ const {grid,weather:data}=surface;if(!grid||!data||!basemap)return;
+ const values=grid.points.map(p=>SCORE[evaluate(data[p.id],state.start,state.days,state.activity,state.camping).level]??null),ranked=values.filter(v=>v!=null).length;
+ if(!ranked){basemap.setWeather(null);$('weather-key-status').textContent='No complete forecasts for these dates.';return}
+ const {width,height}=canvasSize(grid.bounds),canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
+ const ctx=canvas.getContext('2d'),img=ctx.createImageData(width,height);paintGradient(img.data,width,height,values,grid.n,grid.bounds,0.5);ctx.putImageData(img,0,0);
+ basemap.setWeather(canvas,grid.bounds);$('weather-key').hidden=false;
+ $('weather-key-status').textContent=state.activity+' · '+tripDateLabel()+(state.days>1?' · '+state.days+' days':'')+' · '+ranked+'/'+values.length+' samples ranked';
+}
+function initBasemap(){map.attributionControl.addAttribution(ATTRIBUTION);$('map-language').textContent=' · Offline basemap';$('map-language').title='Map data ships with this page: borders, water, highways, US national park units, peaks, ranges and light terrain shading. Not for navigation.';basemap=createBasemap(L,window.topojson,map,{onError:()=>{$('map-language').textContent=' · Map background unavailable'},obstacles:()=>[...markers.map(m=>({...map.latLngToContainerPoint(m.getLatLng()),r:18}))]})}
 
 const BIKES=['Biking','Bikepacking'];
 const bikeAlias=list=>list.some(a=>BIKES.includes(a))?[...new Set([...list,...BIKES])]:list;

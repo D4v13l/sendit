@@ -128,9 +128,11 @@ test('a stale page is re-read until the new answer appears',async()=>{
 });
 
 test('long forecast requests are chunked and cut-off pages are split',async()=>{
- const many=n=>'https://api.open-meteo.com/v1/forecast?forecast_days=16&latitude='+Array.from({length:n},(_,i)=>40+i).join(',')+'&longitude='+Array.from({length:n},()=>-105).join(',');
+ const many=n=>'https://api.open-meteo.com/v1/forecast?hourly=temperature_2m&forecast_days=16&latitude='+Array.from({length:n},(_,i)=>40+i).join(',')+'&longitude='+Array.from({length:n},()=>-105).join(',');
  assert.deepEqual(forecastChunks(many(13)).map(u=>new URL(u).searchParams.get('latitude').split(',').length),[3,3,3,3,1]);
  assert.equal(forecastChunks(F+'47,48&longitude=-121,-122').length,1);
+ // Day trips skip hourly data, so far more points fit in one request.
+ assert.deepEqual(forecastChunks(many(64).replace('hourly=temperature_2m&','').replace('forecast_days=16','forecast_days=2')).map(u=>new URL(u).searchParams.get('latitude').split(',').length),[47,17]);
  // A page cap of ~2 points: every 3-point chunk comes back cut off and is halved.
  const points=u=>new URL(u).searchParams.get('latitude').split(',').length;
  const capped=u=>{const full=meteo(u);return points(u)>2?full.slice(0,-8).padEnd(2100,' '):full};
@@ -155,3 +157,42 @@ test('closure links point at the managing agency for every curated region',()=>{
  for(const [id,n] of Object.entries(byId)){assert.match(n.url,/^https:\/\//,id);assert.ok(n.managerUrl,id);assert.doesNotMatch(n.label,/^[a-z0-9.-]+\.[a-z]{2,} notices$/,id+' has no manager name')}
  assert.equal(managerName('https://www.parks.ca.gov/?page_id=471'),'California State Parks');
 });
+
+import {gradientGrid,sampleGrid,tierColor,canvasSize,paintGradient,SCORE} from '../src/gradient.mjs';
+import {hillshade} from '../src/hillshade.mjs';
+import {showRoadLabel} from '../src/basemap.mjs';
+
+test('weather grid is square on the ground and centred on the origin',()=>{
+ const g=gradientGrid({lat:47.6,lon:-122.3});
+ assert.equal(g.points.length,64);assert.equal(new Set(g.points.map(p=>p.id)).size,64);
+ assert.ok(Math.abs((g.bounds.north+g.bounds.south)/2-47.6)<1e-9&&Math.abs((g.bounds.east+g.bounds.west)/2+122.3)<1e-9);
+ assert.ok(g.bounds.east-g.bounds.west>g.bounds.north-g.bounds.south,'longitude span widens with latitude');
+ assert.deepEqual(g.points[0].point,[+g.bounds.north.toFixed(3),+g.bounds.west.toFixed(3)]);
+});
+
+test('interpolation blends known samples and never invents unknown ones',()=>{
+ const v=[0,2,null,null];
+ assert.equal(sampleGrid(v,2,0.5,0),1);assert.equal(sampleGrid(v,2,0.5,0.9),1,'between rows, only known corners count');assert.equal(sampleGrid(v,2,0.5,1),null,'on an unranked row nothing is invented');
+ assert.equal(sampleGrid([null,null,null,null],2,0.5,0.5),null);
+ assert.equal(sampleGrid([2,2,2,2],2,0.3,0.7),2);
+ assert.deepEqual(tierColor(0),[170,64,53]);assert.deepEqual(tierColor(1),[228,177,47]);assert.deepEqual(tierColor(2),[40,115,76]);
+ assert.deepEqual(SCORE,{poor:0,passable:1,excellent:2});
+});
+
+test('painted surface follows the samples and leaves unranked areas clear',()=>{
+ const bounds={south:46,north:48,west:-123,east:-121},{width,height}=canvasSize(bounds,40),data=new Uint8ClampedArray(width*height*4);
+ assert.ok(height>40,'Mercator rows are taller than columns at this latitude');
+ paintGradient(data,width,height,[0,2,null,null],2,bounds,0.5);
+ const px=(x,y)=>[...data.slice((y*width+x)*4,(y*width+x)*4+4)];
+ const row=Math.floor(height/2);assert.ok(px(4,row)[0]>px(width-5,row)[0],'west (poor) is redder than east (excellent)');
+ const mid=Math.floor(height/2);assert.equal(px(Math.floor(width/2),mid)[3],128,'full strength inside');assert.ok(px(0,mid)[3]<40,'edges fade out');
+});
+
+test('hillshade darkens only slopes facing away from the light',()=>{
+ const flat=new Float32Array(25).fill(500),sea=new Float32Array(25).fill(-40);
+ assert.ok(hillshade(flat,5,5,()=>90).every(v=>v===255));assert.ok(hillshade(sea,5,5,()=>90).every(v=>v===255));
+ const away=new Float32Array(25).map((_,i)=>800-(i%5)*120),toward=new Float32Array(25).map((_,i)=>200+(i%5)*120);
+ assert.ok(hillshade(away,5,5,()=>90)[12]<230);assert.equal(hillshade(toward,5,5,()=>90)[12],255);
+});
+
+test('route plates appear only when zoomed in',()=>{assert.ok(!showRoadLabel(3,6)&&showRoadLabel(3,7)&&!showRoadLabel(6,7)&&showRoadLabel(6,8))});

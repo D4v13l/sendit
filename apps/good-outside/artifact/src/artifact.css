@@ -13,3 +13,11 @@
 .map-label.city.left::before{left:auto;right:0}
 .map-label.peak.left::before{left:auto;right:-1px}
 .list-note{margin:14px 0 0}
+.map-label.road{transform:translate(-50%,-50%);font-size:10px;font-weight:600;color:#6b5236;background:#fbf7ee;border:1px solid #cfb08c;border-radius:3px;padding:1px 4px;text-shadow:none}
+.weather-key{position:absolute;bottom:62px;left:10px;z-index:500;display:grid;gap:4px;width:min(230px,calc(100% - 64px));padding:8px 10px;background:#f8f5edee;border:1px solid var(--line);border-radius:8px;font-size:11px;color:var(--muted);pointer-events:none}
+.weather-key-bar{height:8px;border-radius:4px;background:linear-gradient(90deg,#aa4035,#e4b12f,#28734c);opacity:.75}
+.weather-key-ends{display:flex;justify-content:space-between}
+.weather-key-ends b{font-weight:600;color:var(--ink)}
+.weather-key-status{font-size:10px;line-height:1.35}
+.weather-key[hidden]{display:none}
+@media(max-width:720px){.weather-key{top:10px;right:10px;left:auto;bottom:auto;width:150px;padding:6px 8px;font-size:10px}.weather-key-status{display:none}}

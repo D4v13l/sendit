@@ -46,6 +46,10 @@
   "ne_10m_geography_regions_elevation_points.geojson": {
    "bytes": 862686,
    "sha256": "f98a16867867146ec4146d6d4b18c823eeedb2825947de666116cf9a4e3f43cb"
+  },
+  "ne_10m_roads.geojson": {
+   "bytes": 50474096,
+   "sha256": "66a0c7b438e92fd124822cc5921cfa11042f48c294ade5e0f03f2c6640fd0248"
   }
  }
 }

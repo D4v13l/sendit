@@ -53,7 +53,8 @@ export function answers(url,data){
   const lat=coords(u,'latitude'),lon=coords(u,'longitude'),list=Array.isArray(data)?data:[data];
   if(list.length!==lat.length||(lat.length>1&&!Array.isArray(data)))return false;
   // Open-Meteo snaps each point to its model grid, so allow a small offset.
-  return list.every((f,i)=>f?.daily&&f?.hourly&&Math.abs(f.latitude-lat[i])<0.3&&Math.abs(f.longitude-lon[i])<0.3);
+  const hourly=u.searchParams.has('hourly');
+  return list.every((f,i)=>f?.daily&&(!hourly||f?.hourly)&&Math.abs(f.latitude-lat[i])<0.3&&Math.abs(f.longitude-lon[i])<0.3);
  }
  if(u.hostname==='geocoding-api.open-meteo.com')return !Array.isArray(data)&&'generationtime_ms' in data&&!('daily' in data);
  if(u.hostname==='router.project-osrm.org'){
@@ -64,11 +65,12 @@ export function answers(url,data){
 }
 
 // Forecast requests for many points are split so each page stays small enough to read in full.
-// Hourly data dominates: roughly 750 characters per point per forecast day.
+// Measured: about 600 characters per point, plus ~620 per forecast day with hourly data or ~120 without.
 export function forecastChunks(url,budget=40000){
  const u=new URL(url);if(u.hostname!=='api.open-meteo.com')return null;
  const lat=coords(u,'latitude'),lon=coords(u,'longitude');if(lat.length<2)return null;
- const days=Math.max(1,Number(u.searchParams.get('forecast_days'))||16),size=Math.max(1,Math.floor(budget/(days*750)));
+ const days=Math.max(1,Number(u.searchParams.get('forecast_days'))||16),perPoint=600+days*(u.searchParams.has('hourly')?620:120);
+ const size=Math.max(1,Math.floor(budget/perPoint));
  return chunkUrls(u,lat,lon,size);
 }
 function chunkUrls(u,lat,lon,size){
@@ -91,14 +93,17 @@ export function createBrowserTransport(mcp,{wait=ms=>new Promise(r=>setTimeout(r
    // The viewer may have closed the tab; open a fresh one once.
    if(e.code!=='tool_error')throw e;opened=false;tabId=null;await open();
   }}
-  let text='',stale=false;
+  let text='',stale=false,cutOff=false;
   for(const delay of [0,500,1000,1500,2500,4000]){
    if(delay)await wait(delay);
-   text=resultText(await call('get_page_text',withTab({}),limit));const data=extractJSON(text);
+   const previous=text;text=resultText(await call('get_page_text',withTab({}),limit));const data=extractJSON(text);
    if(data!==undefined&&answers(url,data)){if(!Array.isArray(data)&&data.error===true)throw Error(data.reason||'Data unavailable');return data}
    stale=data!==undefined;
+   // The same unparseable JSON twice means the page has loaded and its text is being cut off.
+   if(data===undefined&&text===previous&&text.length>2000&&/[[{]/.test(text.slice(0,200))){cutOff=true;break}
   }
   const host=new URL(url).hostname,looksJSON=/[[{]/.test(text.slice(0,200));
+  if(cutOff)throw new BridgeError('too_large','The '+host+' answer ('+text.length.toLocaleString()+' characters) came back cut off.');
   if(stale)throw new BridgeError('stale','The built-in browser kept showing an earlier answer instead of '+host+'.');
   if(looksJSON&&text.length>2000)throw new BridgeError('too_large','The '+host+' answer ('+text.length.toLocaleString()+' characters) came back cut off.');
   throw new BridgeError('unreadable','The built-in browser did not return readable data for '+host+'.');

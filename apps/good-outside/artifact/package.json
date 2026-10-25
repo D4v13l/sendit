@@ -10,6 +10,8 @@
   },
   "devDependencies": {
     "all-the-cities": "3.1.0",
+    "jpeg-js": "^0.4.4",
+    "pngjs": "^7.0.0",
     "polylabel": "^1.1.0",
     "topojson-server": "^3.0.1",
     "us-atlas": "3.0.1",
