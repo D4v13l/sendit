@@ -20,11 +20,15 @@ export function resultText(result){
  const p=result?.payload;if(typeof p==='string')return p;if(p&&typeof p==='object')return JSON.stringify(p);return '';
 }
 
+// The desktop app names tabs with strings such as "tab-2" ("Opened the site in Claude's browser (tabId tab-2)");
+// numeric ids are kept as numbers. The id is passed back exactly as the app gave it.
+const asTabId=v=>Number.isInteger(v)?v:typeof v!=='string'?null:/^\d+$/.test(v)?Number(v):/^[\w-]{1,64}$/.test(v)?v:null;
 export function findTabId(result){
  const p=result?.payload??result?.structuredContent;
- for(const v of [p?.tabId,p?.tab?.id,p?.id])if(Number.isInteger(v)||(typeof v==='string'&&/^\d+$/.test(v)))return Number(v);
- const m=resultText(result).match(/tab\s*_?id["'\s:=]*(\d+)/i)||resultText(result).match(/\btab\s+(\d+)\b/i);
- return m?Number(m[1]):null;
+ for(const v of [p?.tabId,p?.tab?.id])if(asTabId(v)!=null)return asTabId(v);
+ if(Number.isInteger(p?.id))return p.id;
+ const t=resultText(result),m=t.match(/tab\s*_?id["'\s:=(]*([\w-]+)/i)||t.match(/\btab\s+(\d+)\b/i);
+ return m?asTabId(m[1]):null;
 }
 
 // A browser renders a JSON response as plain text, sometimes with a title or URL line around it.
@@ -67,6 +71,8 @@ export function answers(url,data){
 }
 
 // Forecast requests for many points are split so each page stays small enough to read in full.
+// The built-in browser returns at most about 50,000 characters of page text (a cut-off answer came
+// back at 52,024 including its title and URL lines), so chunks aim well below that.
 // Measured: about 600 characters per point, ~460 per day of hourly timestamps, ~150 per hourly
 // field per day and ~15 per daily field per day.
 export function requestDays(u){
@@ -74,12 +80,13 @@ export function requestDays(u){
  if(a&&b)return Math.max(1,Math.round((Date.parse(b)-Date.parse(a))/864e5)+1);
  return Math.max(1,Number(u.searchParams.get('forecast_days'))||16);
 }
-export function forecastChunks(url,budget=60000){
+export function forecastChunks(url,budget=40000){
  const u=new URL(url);if(!pointForecast(u))return null;
  const lat=coords(u,'latitude'),lon=coords(u,'longitude');if(lat.length<2)return null;
  const fields=k=>(u.searchParams.get(k)||'').split(',').filter(Boolean).length,hourly=fields('hourly');
  const perPoint=600+requestDays(u)*((hourly?460+hourly*150:0)+fields('daily')*15);
- const size=Math.max(1,Math.floor(budget/perPoint));
+ // Equal chunks, so the last one is not a stub.
+ const max=Math.max(1,Math.floor(budget/perPoint)),size=Math.ceil(lat.length/Math.ceil(lat.length/max));
  return chunkUrls(u,lat,lon,size);
 }
 function chunkUrls(u,lat,lon,size){
@@ -88,6 +95,9 @@ function chunkUrls(u,lat,lon,size){
 }
 
 // `log` receives one summary per page load: the tools used, reads, text length and outcome.
+// Page text that opens a JSON value on one of its first lines (the title and URL lines can be long).
+const startsJSON=t=>/(^|\n)\s*[[{]/.test(t.slice(0,6000));
+
 export function createBrowserTransport(mcp,{wait=ms=>new Promise(r=>setTimeout(r,ms)),log=()=>{}}={}){
  let tabId=null,opened=false,queue=Promise.resolve();
  const call=async(tool,input,timeout)=>{
@@ -115,9 +125,9 @@ export function createBrowserTransport(mcp,{wait=ms=>new Promise(r=>setTimeout(r
    if(data!==undefined&&answers(url,data)){if(!Array.isArray(data)&&data.error===true)throw Error(data.reason||'Data unavailable');return data}
    stale=data!==undefined;
    // The same unparseable JSON twice means the page has loaded and its text is being cut off.
-   if(data===undefined&&text===previous&&text.length>2000&&/[[{]/.test(text.slice(0,200))){cutOff=true;break}
+   if(data===undefined&&text===previous&&text.length>2000&&startsJSON(text)){cutOff=true;break}
   }
-  const host=new URL(url).hostname,looksJSON=/[[{]/.test(text.slice(0,200));
+  const host=new URL(url).hostname,looksJSON=startsJSON(text);
   if(cutOff)throw new BridgeError('too_large','The '+host+' answer ('+text.length.toLocaleString()+' characters) came back cut off.');
   if(stale)throw new BridgeError('stale','The built-in browser kept showing an earlier answer instead of '+host+'.');
   if(looksJSON&&text.length>2000)throw new BridgeError('too_large','The '+host+' answer ('+text.length.toLocaleString()+' characters) came back cut off.');

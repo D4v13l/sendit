@@ -22,6 +22,8 @@ test('tab ids are read from structured or text results',()=>{
  assert.equal(findTabId(text('Opened new tab. tabId: 42')),42);
  assert.equal(findTabId(text('Opened tab 9 at https://x')),9);
  assert.equal(findTabId(text('done')),null);
+ assert.equal(findTabId(text("Opened the site in Claude's browser (tabId tab-2). Use read_page to see the page.")),'tab-2');
+ assert.equal(findTabId({payload:{tabId:'tab-5'}}),'tab-5');
  assert.equal(resultText({payload:{a:1}}),'{"a":1}');
 });
 
@@ -134,7 +136,7 @@ test('long forecast requests are chunked and cut-off pages are split',async()=>{
  assert.equal(forecastChunks(F+'47,48&longitude=-121,-122').length,1);
  // A one-day request with the five hourly fields day trips use.
  const dayTrip=many(64).replace('hourly=temperature_2m','hourly=temperature_2m,precipitation,precipitation_probability,wind_gusts_10m,snowfall').replace('forecast_days=16','start_date=2026-10-27&end_date=2026-10-27');
- assert.deepEqual(forecastChunks(dayTrip).map(u=>new URL(u).searchParams.get('latitude').split(',').length),[33,31]);
+ assert.deepEqual(forecastChunks(dayTrip).map(u=>new URL(u).searchParams.get('latitude').split(',').length),[22,22,20]);
  assert.equal(forecastChunks('https://marine-api.open-meteo.com/v1/marine?hourly=wave_height&start_date=2026-10-27&end_date=2026-10-27&latitude=1,2&longitude=3,4').length,1,'marine requests chunk too');
  // A page cap of ~2 points: every 3-point chunk comes back cut off and is halved.
  const points=u=>new URL(u).searchParams.get('latitude').split(',').length;
@@ -142,7 +144,7 @@ test('long forecast requests are chunked and cut-off pages are split',async()=>{
  const b=fakeBrowser(capped);const t=createBrowserTransport(b.mcp,{wait:async()=>{}});
  const out=await t(many(7));assert.equal(out.length,7);assert.deepEqual(out.map(f=>f.latitude),[40,41,42,43,44,45,46]);
  const loaded=b.calls.filter(c=>c[0]!=='get_page_text').map(c=>points(c[1].url));
- assert.deepEqual(loaded,[5,3,2,1,2,2],'5 is cut off, halves to 3 (cut off) and 2, then 2 and 1; the second chunk of 2 fits');
+ assert.deepEqual(loaded,[3,2,1,3,2,1,1],'chunks of 3, 3 and 1; each 3 is cut off and halves to 2 and 1');
  await assert.rejects(createBrowserTransport(fakeBrowser(u=>meteo(u).slice(0,-8).padEnd(2100,' ')).mcp,{wait:async()=>{}})(F+'47&longitude=-121'),e=>e.code==='too_large');
 });
 
@@ -354,4 +356,15 @@ test('saved forecasts from several fetches for one origin are all used',async()=
  const remote=createRemote({mcp:{callTool:async()=>{throw Error('should not fetch')}},db,uid:'u',origin:()=>origin});
  const both=await remote.transport(F+'47,48&longitude=-121,-121');
  assert.deepEqual(both.map(x=>x.latitude),[47,48]);
+});
+
+test('a cut-off answer is split even when long title and URL lines come first',async()=>{
+ // The desktop app puts "Title:" and the full request URL above the page text and caps the whole at ~52,000 characters.
+ const lat=Array.from({length:40},(_,i)=>(47+i/100).toFixed(3)),url='https://marine-api.open-meteo.com/v1/marine?start_date=2026-10-27&end_date=2026-10-27&hourly=wave_height&latitude='+lat.join(',')+'&longitude='+lat.map(()=>'-124.5').join(',');
+ const marine=u=>{const q=new URL(u),la=q.searchParams.get('latitude').split(',').map(Number),lo=q.searchParams.get('longitude').split(',').map(Number);const a=la.map((v,i)=>({latitude:v,longitude:lo[i],hourly:{time:[],pad:'x'.repeat(1500)}}));return JSON.stringify(a.length===1?a[0]:a)};
+ const calls=[];const mcp={callTool:async(server,tool,input)=>{calls.push(tool);if(input.url)mcp.url=input.url;
+  if(tool==='preview_start')return text("Opened the site in Claude's browser (tabId tab-2). Use read_page to see the page.");if(tool==='navigate')return text('ok');
+  return text(('Title: \nURL: '+mcp.url+'\n\n'+marine(mcp.url)).slice(0,52000))}};
+ const t=createBrowserTransport(mcp,{wait:async()=>{}});
+ const out=await t(url);assert.equal(out.length,40);assert.deepEqual(out.map(f=>f.latitude),lat.map(Number));
 });
