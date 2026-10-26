@@ -284,3 +284,53 @@ test('coastline sampling finds the seaward side and drops sheltered water',()=>{
  assert.equal(exposure({lon:0,lat:0},90,()=>false),300,'open ocean');
  assert.ok(exposure({lon:0,lat:0},90,([x])=>x>0.3)<50,'land just offshore');
 });
+
+import {packTiles,tileRegions,tilesAround,eligible,tileKey,spreadByDistance,significance,cleanName} from '../src/catalog-tiles.mjs';
+import {distanceKm as catalogDistance} from '../../public/catalog.mjs';
+
+test('provider records pack into tiles and group like /api/locations',()=>{
+ const ob=(id,name,lat,lon,path,climbs=5)=>({sourceId:id,name,lat,lon,activities:['climbing'],sourceUrl:'https://openbeta.io/area/'+id,activityEvidence:{path,totalClimbs:climbs}});
+ const snaps={
+  openbeta:{records:[ob('a','Upper Wall',47.80,-121.58,['USA','Washington','Central-West Cascades & Seattle','Index','Upper Town Wall']),ob('b','Lower Wall',47.79,-121.62,['USA','Washington','Central-West Cascades & Seattle','Index','Lower Town Wall'],12),ob('c','Gym',47.6,-122.3,['USA','Washington','Seattle Indoor Gym']),ob('d','Far Crag',40,-105,['USA','Colorado','Boulder','X'])]},
+  openskidata:{records:[{sourceId:'openstreetmap:relation/1',name:'Open Hill',lat:47.4,lon:-121.4,activities:['downhill_skiing'],sourceUrl:'https://www.openstreetmap.org/relation/1',activityEvidence:{sourceStatus:'operating'}},{sourceId:'openstreetmap:way/2',name:'Closed Hill',lat:47.5,lon:-121.5,activities:['downhill_skiing'],sourceUrl:'https://www.openstreetmap.org/way/2',activityEvidence:{sourceStatus:'abandoned'}}]},
+  ridb:{records:[{sourceId:'9',name:'Forest Trails',lat:47.9,lon:-121.9,activities:['Hiking','Biking'],sourceUrl:'https://www.recreation.gov/camping/gateways/9'}]},
+ };
+ assert.ok(!eligible(snaps.openskidata.records[1])&&!eligible(snaps.openbeta.records[2]),'closed ski areas and indoor climbing are left out');
+ const tiles=packTiles(snaps),origin={lat:47.606,lon:-122.332};
+ assert.ok(tiles[tileKey(47.8,-121.58)]&&tiles[tileKey(40,-105)]);
+ assert.ok(tilesAround(origin).includes(tileKey(47.8,-121.58)));
+ const loaded=tilesAround(origin).map(k=>tiles[k]).filter(Boolean);
+ const climbing=tileRegions(loaded,origin,'Climbing',catalogDistance);
+ assert.equal(climbing.length,1,'both Index walls group into one area; Boulder is out of range');
+ assert.deepEqual([climbing[0].name,climbing[0].memberCount,climbing[0].climbs],['Index',2,17]);
+ assert.ok(/near the middle/.test(climbing[0].sample),'the member nearest the middle represents the area');
+ assert.equal(climbing[0].license,'CC0-1.0');assert.equal(climbing[0].largerArea,'Central-West Cascades & Seattle');
+ const ski=tileRegions(loaded,origin,'Skiing',catalogDistance);assert.deepEqual(ski.map(r=>r.name),['Open Hill']);assert.equal(ski[0].url,'https://www.openstreetmap.org/relation/1');
+ assert.deepEqual(tileRegions(loaded,origin,'Biking',catalogDistance).map(r=>r.id),['ridb:9']);
+ assert.equal(tileRegions(loaded,origin,'Bikepacking',catalogDistance).length,0,'aliasing to Biking happens in the app');
+});
+
+test('the list spreads over distance so far destinations are not crowded out',()=>{
+ const near=Array.from({length:30},(_,i)=>({id:'n'+i,km:5+i})),mid=Array.from({length:5},(_,i)=>({id:'m'+i,km:150+i})),far=Array.from({length:5},(_,i)=>({id:'f'+i,km:300+i}));
+ const out=spreadByDistance([...far,...near,...mid],24);
+ assert.equal(out.length,24);assert.equal(out.filter(r=>r.km<100).length,14);assert.equal(out.filter(r=>r.km>=100&&r.km<250).length,5);assert.equal(out.filter(r=>r.km>=250).length,5);
+ assert.ok(out.every((r,i)=>!i||out[i-1].km<=r.km),'nearest first');
+ assert.equal(spreadByDistance(near,24).length,24,'with nothing far, nearest fill the list');
+});
+
+test('areas sit at their middle and substantial places win scarce nearby slots',()=>{
+ const ob=(id,lat,lon,climbs)=>({sourceId:id,name:id,lat,lon,activities:['climbing'],sourceUrl:'u',activityEvidence:{path:['USA','Washington','R','North Bend',id],totalClimbs:climbs}});
+ // Three members near North Bend and one miscoded in Seattle.
+ const t=packTiles({openbeta:{records:[ob('a',47.49,-121.79,40),ob('b',47.50,-121.78,30),ob('c',47.48,-121.77,20),ob('x',47.61,-122.33,1)]}});
+ const [g]=tileRegions(Object.values(t),{lat:47.606,lon:-122.332},'Climbing',catalogDistance);
+ assert.ok(g.km>30,'the outlier does not pull the area into Seattle');assert.equal(g.memberCount,4);
+ assert.ok(significance({provider:'ridb',name:'Mount Baker-Snoqualmie National Forest'})>significance({provider:'ridb',name:'Lake Washington Ship Canal'}));
+ assert.ok(significance({provider:'openbeta',climbs:300})>significance({provider:'openbeta',climbs:3}));
+ const near=[{id:'canal',provider:'ridb',name:'Ship Canal',km:5},{id:'forest',provider:'ridb',name:'Snoqualmie National Forest',km:60}];
+ assert.deepEqual(spreadByDistance(near,1,[[0,100,1]],significance).map(r=>r.id),['forest']);
+});
+
+test('garbled source names are repaired or visibly marked',()=>{
+ assert.equal(cleanName('Pe\uFFFDa Blanca Wilderness Study Area'),'Peña Blanca Wilderness Study Area');
+ assert.equal(cleanName('Caf\uFFFD Rocks'),'Caf? Rocks');assert.equal(cleanName('Index'),'Index');
+});

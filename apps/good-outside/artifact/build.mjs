@@ -9,12 +9,13 @@ import jpeg from 'jpeg-js';
 import {plan as terrainPlan,tilesOf,tileLat,tileLon,clusters as terrainClusters} from './terrain-plan.mjs';
 import {elevationBands} from './src/bands.mjs';
 import {coastalRuns,sampleRun,exposure,travel,km} from './src/coastline.mjs';
+import {packTiles,PROVIDERS} from './src/catalog-tiles.mjs';
 import {regions as curatedRegions,distanceKm} from '../public/catalog.mjs';
 import {hillshade,decodeTerrarium} from './src/hillshade.mjs';
 const require=createRequire(import.meta.url);
 const here=new URL('./',import.meta.url),pub=new URL('../public/',import.meta.url),dist=new URL('dist/',here);
 const shared=['engine.mjs','trips.mjs','services.mjs','catalog.mjs','world-catalog.mjs','expanded-catalog.mjs'];
-const own=['app.mjs','bridge.mjs','basemap.mjs','places.mjs','notices.mjs','gradient.mjs','drive.mjs','daytime.mjs','surf.mjs','remote.mjs'];
+const own=['catalog-tiles.mjs','app.mjs','bridge.mjs','basemap.mjs','places.mjs','notices.mjs','gradient.mjs','drive.mjs','daytime.mjs','surf.mjs','remote.mjs'];
 
 await rm(dist,{recursive:true,force:true});await mkdir(new URL('data/',dist),{recursive:true});
 for(const f of shared)await copyFile(new URL(f,pub),new URL(f,dist));
@@ -125,10 +126,23 @@ for(const run of coastalRuns(world10))for(const p of sampleRun(run,20)){
 }
 await writeFile(new URL('data/coast.json',dist),JSON.stringify(coast));
 
+// Provider records from the verified snapshots (npm run data:download, or uploaded copies checked
+// against data/snapshots.json), packed into 10° tiles. Skipped with a warning when absent.
+const snapDir=new URL('../data/',here),snapshots={},tileFiles=[];
+for(const p of PROVIDERS){try{snapshots[p.key]=JSON.parse(await readFile(new URL(p.key+'.json',snapDir),'utf8'))}catch{console.warn('Snapshot missing, not bundled: '+p.key)}}
+if(Object.keys(snapshots).length){
+ const tiles=packTiles(snapshots),index={release:'2026-10-23',providers:{},tiles:{}};
+ await mkdir(new URL('data/catalog/',dist),{recursive:true});
+ for(const [k,t] of Object.entries(tiles)){await writeFile(new URL(`data/catalog/${k}.json`,dist),JSON.stringify(t));tileFiles.push(k);index.tiles[k]=t.r.length;for(const r of t.r){const key=PROVIDERS[r[0]].key;index.providers[key]=(index.providers[key]||0)+1}}
+ await writeFile(new URL('data/catalog-index.json',dist),JSON.stringify(index));
+ console.log('Catalog tiles:',tileFiles.length,'records',Object.values(index.tiles).reduce((a,b)=>a+b,0),JSON.stringify(index.providers));
+}
+
 // Published path -> source and content type, for the Artifact tool's `files` map.
 const files={};
 for(const f of [...shared,...own])files[f]={from:'dist/'+f,contentType:'text/javascript'};
 for(const f of ['countries-50m','countries-10m','states-10m','cities-search','cities-labels','water-major','water-minor','water-detail','parks','relief','park-labels','roads','road-labels','hillshade-index','elevation-bands','coast'])files['data/'+f+'.json']={from:'dist/data/'+f+'.json',contentType:'application/json'};
 for(const r of relief)files[r.url]={from:'dist/'+r.url,contentType:'image/jpeg'};
+if(tileFiles.length){files['data/catalog-index.json']={from:'dist/data/catalog-index.json',contentType:'application/json'};for(const k of tileFiles)files[`data/catalog/${k}.json`]={from:`dist/data/catalog/${k}.json`,contentType:'application/json'}}
 await writeFile(new URL('files.json',dist),JSON.stringify(files,null,1));
 console.log(`Built dist/: ${Object.keys(files).length} files plus index.html; ${rows.length} search places.`);

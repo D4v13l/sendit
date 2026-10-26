@@ -1,15 +1,17 @@
 # Good Outside artifact edition
 
-Builds the planner as a self-contained Claude Artifact page. Published copy (private to its owner): https://claude.ai/artifact/Y9tiYMi7tbGVhCN2zkd798
+Builds the planner as a self-contained Claude Artifact page. Published copy: https://claude.ai/artifact/Y9tiYMi7tbGVhCN2zkd798 (sharing is set from the page's Share menu).
 
 ```sh
 cd apps/good-outside/artifact
 npm ci
 NODE_USE_ENV_PROXY=1 node fetch-data.mjs      # pinned Natural Earth layers into .cache/ (prefix only behind a proxy)
 NODE_USE_ENV_PROXY=1 node fetch-terrain.mjs   # elevation tiles for the hillshade, checked against terrain-tiles.json
-npm test        # bridge, place search and label placement
+npm test        # bridge, place search, label placement and catalog tiles
 npm run build   # writes dist/ and dist/files.json (published path -> source, content type)
 ```
+
+The build also bundles the provider catalog when `../data/openbeta.json`, `../data/openskidata.json` and `../data/ridb.json` exist (from `npm run data:download` at the repo root, or the release files checked against `data/snapshots.json` and unzipped there). Without them it warns and ships the curated regions only. Those records and `dist/` are gitignored; never commit them.
 
 Publish `dist/index.html` with the Artifact tool, passing `dist/files.json` as `files` (with `root` set to this folder) and the capability `{mcp: {servers: [{server: "host:claude_browser", tools: ["preview_start", "navigate", "get_page_text"]}]}}`.
 
@@ -18,7 +20,7 @@ Publish `dist/index.html` with the Artifact tool, passing `dist/files.json` as `
 Artifact pages run in a locked frame: no fetch to other hosts, no remote images or tiles, no geolocation, no server code.
 
 - **Shared logic, unchanged.** `engine.mjs`, `trips.mjs`, `services.mjs` and the curated catalogs are copied byte-for-byte from `../public` at build time. `src/app.mjs` is a fork of `../public/app.mjs` for this runtime.
-- **Regions.** The 49 curated regions bundled with the planner, filtered the way `/api/locations` filters (activity, 450 km, nearest 24). Biking and Bikepacking match the same areas (the curated set tags none as Biking). The 44,692-record D1 database is not included.
+- **Regions.** The 49 curated regions bundled with the planner, plus provider records from the pinned snapshot release (`src/catalog-tiles.mjs`). The build keeps records whose source status is operating or unknown (no indoor or buildering areas) and splits them into 10° tiles under `data/catalog/` (124 tiles, 43,346 records for the 2026-10-23 release: OpenBeta 35,568, OpenSkiData 5,823, RIDB 1,955); a search loads only the tiles within 450 km. OpenBeta areas are grouped under their fourth path level (third where the path is shorter) and placed at the members' median, so a crag shows once rather than as each wall. Candidates for the activity within 450 km are spread across 0–100, 100–250 and 250+ km, up to 8 each and 24 in all. Within a band, curated regions come first, then OpenBeta areas by climb count, with named RIDB forests, parks, wilderness and recreation areas ahead of dams, harbors and visitor centers; distance breaks ties, and slots a band cannot fill go to the next-nearest areas. Provider points are source locations, not verified trailheads or access points, and the sheet says so. Biking and Bikepacking match the same areas. One RIDB name with a broken character is repaired at build time (`cleanName`). OpenSkiData is ODbL: the coverage panel carries its notice, and the tiles stay under ODbL. The 44,692-record D1 database itself is not included.
 - **List.** One list instead of under-2-hour and 2–4-hour tabs: best weather first, then shortest drive. Areas over four hours are left out.
 - **Drive times.** `src/drive.mjs`: OSRM road distance (one table request with `annotations=distance`) at a flat 60 mph average, as if on major highways the whole way. Where road distance is unavailable, straight-line distance × 1.3 stands in and the list marks it "est.", so every area has a time. An offline graph from Natural Earth roads was tried and rejected: its generalised network has gaps (US-101 near Olympia) that produced multi-hour detours.
 - **Elevation bands.** At build time `src/bands.mjs` samples terrain within 10 miles of each curated region (from the hillshade's elevation tiles). Where at least 8% lies on each side of 3,000 ft (19 of 49 regions), the detail sheet fetches two forecasts at representative points near each band's median elevation, passing Open-Meteo's `elevation` parameter, and ranks each with `evaluate()`. Other areas note their terrain range.
@@ -30,6 +32,6 @@ Artifact pages run in a locked frame: no fetch to other hosts, no remote images 
 - **Weather map.** After a search the map shows no per-area markers. Instead `src/gradient.mjs` ranks an 8×8 grid of forecast points (about 300 km around the origin) with the planner's `evaluate()` and paints a red–yellow–green surface, interpolated between ranked points only, feathered at the edges and clipped to land. Grid forecasts share the bridge and cache; activity and date changes repaint without refetching unless the dates outrun the stored forecast. Day trips request no hourly data, which keeps responses small.
 - **Map.** Leaflet over geography shipped with the page: Natural Earth countries, rivers, lakes, major highways with route plates, mountain-range names, peaks and 61 US National Park Service unit boundaries (public domain; layers pinned by commit and SHA-256 in `data-sources.json`), US Census interior state borders (via `us-atlas`), and GeoNames labels for cities of 100,000+ (CC BY 4.0, via `all-the-cities`). Coastlines and borders are drawn once from topology meshes. Light hillshade is rendered at build time (`src/hillshade.mjs`) from AWS Terrain Tiles (Tilezen; tiles pinned by SHA-256 in `terrain-tiles.json`): a zoom-4 world layer plus zoom-7 layers around each cluster of curated regions, multiplied over land and the weather surface. Labels avoid each other and the planner's markers. No national forests, wilderness, state or non-US parks, minor roads or trails.
 - **Origin search.** Offline over GeoNames places with 1,000+ residents; falls back to Open-Meteo geocoding through the bridge for postcodes.
-- **Not included.** Device location, the `/locations` directory, `/api/health`, MCP refresh tools and the ODbL export.
+- **Not included.** Device location, the `/locations` directory, `/api/health`, MCP refresh tools and the ODbL export file.
 
 The bridge relies on the documented `url`/`tabId` arguments and reads results defensively, but it has not yet been exercised against the real built-in browser.
