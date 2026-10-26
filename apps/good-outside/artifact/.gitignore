@@ -1,1 +1,3 @@
 .cache/
+dist-web/
+web/wrangler.generated.json

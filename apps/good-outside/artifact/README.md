@@ -15,6 +15,12 @@ The build also bundles the provider catalog when `../data/openbeta.json`, `../da
 
 Publish `dist/index.html` with the Artifact tool, passing `dist/files.json` as `files` (with `root` set to this folder) and the capability `{mcp: {servers: [{server: "host:claude_browser", tools: ["preview_start", "navigate", "get_page_text"]}]}}`.
 
+## Self-hosted copy
+
+`node build-web.mjs` (after `node build.mjs`) turns `dist/` into `dist-web/`, an ordinary static site. It has a full HTML document, Leaflet and topojson-client served locally, and a `_headers` file with a strict Content Security Policy. Outside Claude the page sets `data-host="web"` and fetches Open-Meteo and OSRM directly, so every feature works in any browser. `web/deploy.mjs` and `.github/workflows/good-outside-web.yml` deploy it to your own Cloudflare account behind Cloudflare Access, and refuse to deploy unless Access protects the hostname. Setup and the security and privacy notes are in [web/README.md](web/README.md).
+
+`wrangler` is pinned to 4.149.0, the newest release at least two weeks old. `npm audit` reports advisories in its local-development simulator (miniflare's undici). Deploying doesn't use that simulator; it only talks to the Cloudflare API.
+
 ## How it differs from the hosted planner
 
 Artifact pages run in a locked frame: no fetch to other hosts, no remote images or tiles, no geolocation, no server code.

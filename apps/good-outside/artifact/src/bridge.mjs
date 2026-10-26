@@ -3,7 +3,7 @@
 // It matches services.mjs's transport(url, timeout) contract so the shared client is unchanged.
 export const SERVER='host:claude_browser';
 export const TOOLS=['preview_start','navigate','get_page_text'];
-const HOSTS=new Set(['api.open-meteo.com','marine-api.open-meteo.com','geocoding-api.open-meteo.com','router.project-osrm.org']);
+export const HOSTS=new Set(['api.open-meteo.com','marine-api.open-meteo.com','geocoding-api.open-meteo.com','router.project-osrm.org']);
 // Point forecasts whose answers are per-coordinate and can be split into smaller requests.
 const pointForecast=u=>(u.hostname==='api.open-meteo.com'&&u.pathname==='/v1/forecast')||(u.hostname==='marine-api.open-meteo.com'&&u.pathname==='/v1/marine');
 

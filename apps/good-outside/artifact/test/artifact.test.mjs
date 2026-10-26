@@ -388,3 +388,31 @@ test('an area is placed in words from the start and from nearby towns',()=>{
  const box={south:47.4,north:47.7,west:-122.4,east:-121.5};
  assert.deepEqual(townsInView(rows,box,at,3,{close:2}).map(r=>r[0]),['Riverbend','North Bend','Seattle'],'closest towns first, then the largest');
 });
+
+import {accessProblems,domainCovers,wranglerConfig} from '../web/deploy.mjs';
+import {webDocument,HEADERS,SERVICES} from '../build-web.mjs';
+test('deploys are refused unless Cloudflare Access gates the whole hostname by identity',()=>{
+ const host='outside.example.com',allow={name:'Friends',decision:'allow',include:[{email:{email:'a@example.com'}}]};
+ assert.ok(domainCovers('outside.example.com',host)&&domainCovers('outside.example.com/*',host)&&domainCovers('*.example.com',host));
+ assert.ok(!domainCovers('outside.example.com/admin',host)&&!domainCovers('example.com',host)&&!domainCovers('other.example.com',host));
+ assert.deepEqual(accessProblems([{type:'self_hosted',name:'GO',domain:host,policies:[allow]}],host),[]);
+ assert.deepEqual(accessProblems([{type:'self_hosted',destinations:[{type:'public',uri:host+'/*'}],policies:[allow]}],host),[]);
+ assert.match(accessProblems([],host)[0],/No Cloudflare Access/);
+ assert.match(accessProblems([{type:'self_hosted',domain:host+'/admin',policies:[allow]}],host)[0],/No Cloudflare Access/,'a path-scoped app does not protect the site');
+ assert.match(accessProblems([{type:'self_hosted',domain:host,policies:[{name:'All',decision:'allow',include:[{everyone:{}}]}]}],host).join(),/allows everyone/);
+ assert.match(accessProblems([{type:'self_hosted',domain:host,policies:[allow,{name:'Open',decision:'bypass',include:[{everyone:{}}]}]}],host).join(),/Bypass/);
+ assert.match(accessProblems([{type:'self_hosted',domain:host,policies:[]}],host).join(),/no Allow policy/);
+ const c=wranglerConfig('good-outside-web',host);
+ assert.equal(c.workers_dev,false);assert.equal(c.preview_urls,false);assert.deepEqual(c.routes,[{pattern:host,custom_domain:true}]);assert.equal(c.main,undefined);
+});
+
+test('the web build loads scripts only from itself and talks only to the forecast and routing services',()=>{
+ const html=webDocument('<title>Good Outside</title>\n<style>a{}</style>\n<p>x</p><script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script><script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script><script type="module" src="app.mjs"></script>');
+ assert.match(html,/^<!doctype html><html lang="en"><head>.*<title>Good Outside<\/title><style>a\{\}<\/style><\/head><body><p>x<\/p>/);
+ assert.match(html,/src="vendor\/leaflet-1\.9\.4\.js"/);assert.doesNotMatch(html,/cdnjs|jsdelivr/);
+ assert.throws(()=>webDocument('<p>no scripts</p>'),/no longer loads/);
+ const csp=HEADERS.match(/Content-Security-Policy: (.*)/)[1];
+ assert.match(csp,/default-src 'none'/);assert.match(csp,/script-src 'self';/);assert.match(csp,/frame-ancestors 'none'/);
+ assert.equal(csp.match(/connect-src ([^;]*)/)[1],["'self'",...SERVICES].join(' '));
+ assert.match(HEADERS,/X-Robots-Tag: noindex/);assert.match(HEADERS,/Referrer-Policy: no-referrer/);
+});

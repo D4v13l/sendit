@@ -29,3 +29,4 @@
 .snap-gateway{width:12px;height:12px;transform:rotate(45deg) scale(.8);background:#a2760b;border:2px solid #fff;box-shadow:0 0 0 1px #0005}
 .location-line{margin:0 0 14px}.location-links a{margin-left:6px;white-space:nowrap}
 .snap-key{display:inline-flex;align-items:center;gap:6px}.snap-key i{display:inline-block;flex:none}.snap-key .snap-pin{width:12px;height:12px;border-width:2px}.snap-key .snap-gateway{margin-left:6px}
+.web-only{display:none}:root[data-host=web] .web-only{display:revert}:root[data-host=web] .claude-only{display:none}

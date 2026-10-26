@@ -1,4 +1,4 @@
-import {destinationToday,nearTermStart,weatherGrid,makeBookmark,validBookmark,topPicks,campsiteSearch} from './trips.mjs';import {regions as curated,distanceKm} from './catalog.mjs';import {createRegionClient} from './services.mjs';import {SERVER,BridgeError,isBlocking,createBrowserTransport} from './bridge.mjs';import {createBasemap,ATTRIBUTION} from './basemap.mjs';import {gradientGrid,canvasSize,paintGradient,SCORE,tierColor} from './gradient.mjs';import {loadPlaces,searchPlaces,placeLabel} from './places.mjs';import {closureNotice} from './notices.mjs';import {windowed,HOURLY_DAY_FIELDS,DAY_FROM,DAY_TO} from './daytime.mjs';import {rateSurf,MARINE_HOURLY,WIND_HOURLY,angle} from './surf.mjs';import {driveTimes,AVERAGE_MPH} from './drive.mjs';import {dateKey,dates,tier,evaluate,activities} from './engine.mjs';import {createRemote} from './remote.mjs';import {nearbyPlaces,townsInView,locationLine} from './locate.mjs';import {tilesAround,tileRegions,spreadByDistance,significance,PROVIDERS} from './catalog-tiles.mjs';
+import {destinationToday,nearTermStart,weatherGrid,makeBookmark,validBookmark,topPicks,campsiteSearch} from './trips.mjs';import {regions as curated,distanceKm} from './catalog.mjs';import {createRegionClient,fetchJSON} from './services.mjs';import {SERVER,BridgeError,isBlocking,createBrowserTransport} from './bridge.mjs';import {createBasemap,ATTRIBUTION} from './basemap.mjs';import {gradientGrid,canvasSize,paintGradient,SCORE,tierColor} from './gradient.mjs';import {loadPlaces,searchPlaces,placeLabel} from './places.mjs';import {closureNotice} from './notices.mjs';import {windowed,HOURLY_DAY_FIELDS,DAY_FROM,DAY_TO} from './daytime.mjs';import {rateSurf,MARINE_HOURLY,WIND_HOURLY,angle} from './surf.mjs';import {driveTimes,AVERAGE_MPH} from './drive.mjs';import {dateKey,dates,tier,evaluate,activities} from './engine.mjs';import {createRemote} from './remote.mjs';import {nearbyPlaces,townsInView,locationLine} from './locate.mjs';import {tilesAround,tileRegions,spreadByDistance,significance,PROVIDERS} from './catalog-tiles.mjs';
 const $=id=>document.getElementById(id);const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let saved={};try{saved=JSON.parse(localStorage.getItem('good-outside-v1'))||{}}catch{}
 let state={dateMode:['today','tomorrow','weekend','custom'].includes(saved.dateMode)?saved.dateMode:(saved.start&&saved.start!==dateKey()?'custom':'today'),origin:saved.origin||null,activity:saved.activity||'Hiking',start:saved.start>=dateKey()?saved.start:dateKey(),days:Math.max(1,Math.min(7,Number(saved.days)||1)),camping:saved.camping||'none'};
@@ -8,7 +8,10 @@ let catalog=[],regions=[],weather={},routes={},weatherAt=null,busy=false,revisio
 async function cachedDrives(origin,list,force){const key=JSON.stringify([origin.lat,origin.lon,list.map(r=>r.id).sort()]),hit=driveCache.get(key);if(!force&&hit&&Date.now()-hit.at<30*60*1000)return hit.data;const data=await driveTimes(transport,origin,list);if(Object.values(data).some(d=>d.basis==='road'))driveCache.set(key,{at:Date.now(),data});return data}
 let basemap=null,surface={grid:null,weather:null,rev:0};
 // Live weather, drive times and postcode lookup run through the Claude desktop app's built-in browser.
-let bridge=null,bridgeOk=false;try{bridgeOk=localStorage.getItem('good-outside-bridge-ok')==='1'}catch{}
+// A self-hosted copy (no Claude runtime) fetches the same services directly from the viewer's browser.
+const inClaude=!!window.claude?.use;document.documentElement.dataset.host=inClaude?'claude':'web';
+const directFetch=(url,timeout)=>fetchJSON(url,Math.max(20000,timeout||0));
+let bridge=inClaude?null:directFetch,bridgeOk=!inClaude;try{bridgeOk||=localStorage.getItem('good-outside-bridge-ok')==='1'}catch{}
 // Without the built-in browser (phones, the web), searching a location fetches forecasts through a Claude background task instead.
 let remote=null,hostMissing=false;
 // A short log of live-data calls in the viewer's private storage, so the owner can ask Claude to read
@@ -16,7 +19,7 @@ let remote=null,hostMissing=false;
 const diagLog=[];let diagDoc=null,diagTimer=null;
 function diag(event){diagLog.push({at:new Date().toISOString(),...event});if(diagLog.length>60)diagLog.shift();if(!diagDoc)return;clearTimeout(diagTimer);diagTimer=setTimeout(()=>diagDoc.set({updatedAtMs:Date.now(),log:diagLog}).catch(()=>{}),1500)}
 const clip=(v,n=200)=>String(v??'').slice(0,n);
-const mcpReady=(window.claude?.use?window.claude.use('mcp'):Promise.resolve(null)).then(async m=>{bridge=m?createBrowserTransport(m,{log:diag}):null;if(!m){diag({kind:'boot',mcp:false});return}
+const mcpReady=(inClaude?window.claude.use('mcp'):Promise.resolve(null)).then(async m=>{if(!inClaude)return;bridge=m?createBrowserTransport(m,{log:diag}):null;if(!m){diag({kind:'boot',mcp:false});return}
  const listed=await m.listTools().catch(()=>null);hostMissing=!!listed&&!listed.servers.some(s=>s.server===SERVER);
  const [db,user]=await Promise.all([window.claude.use('db'),window.claude.use('user')]);const uid=await user?.id();
  if(db&&uid){remote=createRemote({mcp:m,db,uid,origin:()=>state.origin});diagDoc=db.collection('data/users/'+uid).doc('diagnostics')}
@@ -48,6 +51,9 @@ const transport=async(url,timeout)=>{const u=new URL(url),at=Date.now(),entry={k
  catch(error){if(error?.code!=='desktop_only')diag({...entry,mode:remoteMode()?'remote':'browser',ms:Date.now()-at,code:clip(error?.code||error?.name,40),message:clip(error?.message)});throw error}};
 const client=createRegionClient(transport);
 function liveDataMessage(error){const code=error?.code;
+ // A self-hosted copy talks to the services directly; their failures are plain HTTP or network errors.
+ if(!inClaude&&/Service returned 429/.test(error?.message||''))return 'The forecast service’s free limit was reached for now. Try again in a few minutes.';
+ if(!inClaude&&['TypeError','AbortError'].includes(error?.name))return 'Could not reach the forecast or routing service. Check your connection, then tap ↻.';
  if(['stale','too_large','unreadable'].includes(code))return error.message+' Tap ↻ to try again.';
  if(['server_not_connected','capability_disabled','not_granted','capability_removed'].includes(code))return 'Live forecasts load only for this page’s owner, signed in to Claude. Everything else works here.';
  if(code==='search_needed')return 'Forecasts are fetched only when you search a starting location. Search '+(state.origin?.name||'one')+' to load them.';
