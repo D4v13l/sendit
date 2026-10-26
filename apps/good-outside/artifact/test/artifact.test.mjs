@@ -368,3 +368,23 @@ test('a cut-off answer is split even when long title and URL lines come first',a
  const t=createBrowserTransport(mcp,{wait:async()=>{}});
  const out=await t(url);assert.equal(out.length,40);assert.deepEqual(out.map(f=>f.latitude),lat.map(Number));
 });
+
+import {nearbyPlaces,townsInView,locationLine,bearing,direction} from '../src/locate.mjs';
+test('an area is placed in words from the start and from nearby towns',()=>{
+ const rows=[['North Bend','US','WA',7500,47.4957,-121.7868],['Riverbend','US','WA',2200,47.4648,-121.7501],['Bellevue','US','WA',150000,47.6101,-122.2015],['Seattle','US','WA',750000,47.6062,-122.3321],['Snoqualmie','US','WA',14000,47.5287,-121.8254],['Tiny Place','US','WA',1200,47.43,-121.45]];
+ assert.equal(direction(bearing([47,-122],[48,-122])),'north');assert.equal(direction(bearing([47,-122],[47,-121])),'east');
+ const at=[47.4235,-121.4137],near=nearbyPlaces(rows,at);
+ assert.equal(near.town.name,'North Bend, WA');assert.equal(near.town.direction,'east-southeast');
+ assert.equal(near.nearest.name,'Tiny Place, WA','a much closer small place is named too');
+ const line=locationLine(at,{lat:47.6062,lon:-122.3321,name:'Seattle, WA, US'},near);
+ assert.match(line[0],/^7\d km \(4\d mi\) east-southeast of Seattle, WA, US \(straight line\)$/);
+ assert.equal(line[2],'29 km (18 mi) east-southeast of North Bend, WA');
+ // A small place about as close as the town is left out.
+ assert.equal(nearbyPlaces(rows.filter(r=>r[0]!=='Tiny Place'),at).nearest,null);
+ // A small town gets a larger neighbour within 40 km beside it; a 20,000+ town does not.
+ const lacey=nearbyPlaces([['Tanglewilde-Thompson Place','US','WA',8000,47.051,-122.781],['Lacey','US','WA',53000,47.034,-122.823]],[47.0728,-122.7128]);
+ assert.equal(lacey.town.name,'Tanglewilde-Thompson Place, WA');assert.equal(lacey.city.name,'Lacey, WA');
+ assert.equal(nearbyPlaces([['Lacey','US','WA',53000,47.034,-122.823],['Olympia','US','WA',52000,47.038,-122.9]],[47.0728,-122.7128]).city,null);
+ const box={south:47.4,north:47.7,west:-122.4,east:-121.5};
+ assert.deepEqual(townsInView(rows,box,at,3,{close:2}).map(r=>r[0]),['Riverbend','North Bend','Seattle'],'closest towns first, then the largest');
+});

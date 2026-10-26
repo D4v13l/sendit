@@ -1,6 +1,8 @@
 // Tile-free basemap for the artifact: the page cannot load remote tiles, so it draws
 // Natural Earth / US Census geography and GeoNames city labels from files shipped beside it.
-const getJSON=async path=>{const r=await fetch(path);if(!r.ok)throw Error(path+' '+r.status);return r.json()};
+// Shared by every map on the page, so the detail sheet's location map reuses what the main map loaded.
+const loaded=new Map();
+const getJSON=path=>{if(!loaded.has(path))loaded.set(path,fetch(path).then(r=>{if(!r.ok)throw Error(path+' '+r.status);return r.json()}).catch(e=>{loaded.delete(path);throw e}));return loaded.get(path)};
 
 export const ATTRIBUTION='Geography: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> · <a href="https://www.census.gov/geographies/mapping-files.html" target="_blank" rel="noopener">US Census</a> · Cities: <a href="https://www.geonames.org/" target="_blank" rel="noopener">GeoNames</a> (CC BY 4.0)';
 
@@ -42,7 +44,8 @@ const feet=m=>Math.round(m*3.28084).toLocaleString()+' ft';
 
 // Map layers, bottom to top: land fill, the trip-weather surface, light hillshade (multiplied over
 // both), then water, parks, highways and boundary lines, then labels. Returns {setWeather}.
-export function createBasemap(L,topojson,map,{onError,obstacles=()=>[]}={}){
+// `extraLabels(box, zoom)` adds the caller's own place labels ({kind, text, lat, lon}) ahead of the rest.
+export function createBasemap(L,topojson,map,{onError,obstacles=()=>[],extraLabels=()=>[]}={}){
  const pane=(name,z,extra={})=>{const p=map.createPane(name);p.style.zIndex=z;p.style.pointerEvents='none';Object.assign(p.style,extra);return p};
  pane('basemapLand',300);pane('weatherSurface',310);pane('hillshade',320,{mixBlendMode:'multiply'});pane('basemapLabels',450);
  const below=L.canvas({pane:'basemapLand',padding:0.3}),above=L.canvas({padding:0.3});
@@ -98,8 +101,9 @@ export function createBasemap(L,topojson,map,{onError,obstacles=()=>[]}={}){
  };
  const drawLabels=z=>{
   labels.clearLayers();const b=map.getBounds(),box={south:b.getSouth(),north:b.getNorth(),west:b.getWest(),east:b.getEast()};
-  const items=[
-   ...visibleLabels(cities,box,z).map(c=>({kind:'city',text:c[0],lat:c[4],lon:c[5]})),
+  const own=extraLabels(box,z),taken=new Set(own.map(i=>i.text));
+  const items=[...own,
+   ...visibleLabels(cities,box,z).filter(c=>!taken.has(c[0])).map(c=>({kind:'city',text:c[0],lat:c[4],lon:c[5]})),
    ...(showParkLabel(z)?parkLabels.filter(p=>inside(box,p[1],p[2])).map(p=>({kind:'park',text:p[0],lat:p[1],lon:p[2]})):[]),
    ...roadLabels.filter(r=>showRoadLabel(r[3],z)&&inside(box,r[1],r[2])).sort((a,b)=>a[3]-b[3]).map(r=>({kind:'road',text:r[0],lat:r[1],lon:r[2]})),
    ...relief.ranges.filter(r=>showRange(r[3],z)&&inside(box,r[1],r[2])).sort((a,b)=>a[3]-b[3]).map(r=>({kind:'range',text:r[0],lat:r[1],lon:r[2]})),

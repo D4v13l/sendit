@@ -15,7 +15,7 @@ import {hillshade,decodeTerrarium} from './src/hillshade.mjs';
 const require=createRequire(import.meta.url);
 const here=new URL('./',import.meta.url),pub=new URL('../public/',import.meta.url),dist=new URL('dist/',here);
 const shared=['engine.mjs','trips.mjs','services.mjs','catalog.mjs','world-catalog.mjs','expanded-catalog.mjs'];
-const own=['catalog-tiles.mjs','app.mjs','bridge.mjs','basemap.mjs','places.mjs','notices.mjs','gradient.mjs','drive.mjs','daytime.mjs','surf.mjs','remote.mjs'];
+const own=['catalog-tiles.mjs','app.mjs','bridge.mjs','basemap.mjs','places.mjs','notices.mjs','gradient.mjs','drive.mjs','daytime.mjs','surf.mjs','remote.mjs','locate.mjs'];
 
 await rm(dist,{recursive:true,force:true});await mkdir(new URL('data/',dist),{recursive:true});
 for(const f of shared)await copyFile(new URL(f,pub),new URL(f,dist));
