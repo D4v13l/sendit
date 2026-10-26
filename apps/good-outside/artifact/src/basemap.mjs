@@ -93,6 +93,7 @@ export function createBasemap(L,topojson,map,{onError,obstacles=()=>[]}={}){
    if(on)ensure(entry);if(!l)continue;
    if((on||fallback)&&!map.hasLayer(l))l.addTo(map);if(!(on||fallback)&&map.hasLayer(l))l.remove()}
   for(const [key] of plan)if(layers[key]&&map.hasLayer(layers[key])&&!key.startsWith('land'))layers[key].bringToFront();
+  coastLayer.eachLayer(l=>l.bringToFront());
   syncHillshade();drawLabels(z);
  };
  const drawLabels=z=>{
@@ -113,6 +114,8 @@ export function createBasemap(L,topojson,map,{onError,obstacles=()=>[]}={}){
  };
  // Trip-weather surface: the caller paints a canvas over `bounds`; it is clipped to land here.
  let weather=null,weatherLayer=null;
+ // Surf ratings drawn as thick coloured strokes along the coastline, above water and borders.
+ const coastLayer=L.layerGroup().addTo(map);
  const applyWeather=()=>{
   if(weatherLayer){weatherLayer.remove();weatherLayer=null}
   if(!weather)return;const {canvas,bounds}=weather,shape=shapes.fine||shapes.coarse;
@@ -124,7 +127,8 @@ export function createBasemap(L,topojson,map,{onError,obstacles=()=>[]}={}){
  sync();
  Promise.all([getJSON('data/cities-labels.json'),getJSON('data/park-labels.json'),getJSON('data/relief.json'),getJSON('data/road-labels.json')]).then(([c,p,r,rl])=>{cities=c;parkLabels=p;relief=r;roadLabels=rl;sync()}).catch(()=>{});
  getJSON('data/hillshade-index.json').then(i=>{hillshadeIndex=i;syncHillshade()}).catch(()=>{});
- return {setWeather(canvas,bounds){weather=canvas?{canvas,bounds}:null;applyWeather()}};
+ return {setWeather(canvas,bounds){weather=canvas?{canvas,bounds}:null;applyWeather()},
+  setCoast(lines){coastLayer.clearLayers();for(const l of lines)L.polyline(l.latlngs,{renderer:above,interactive:false,color:l.color,weight:7,opacity:0.85,lineCap:'round',lineJoin:'round'}).addTo(coastLayer)}};
 }
 
 // Keeps only the parts of the canvas that fall on land, projecting lon/lat with Web Mercator.

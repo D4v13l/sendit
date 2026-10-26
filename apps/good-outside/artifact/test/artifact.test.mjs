@@ -129,17 +129,19 @@ test('a stale page is re-read until the new answer appears',async()=>{
 
 test('long forecast requests are chunked and cut-off pages are split',async()=>{
  const many=n=>'https://api.open-meteo.com/v1/forecast?hourly=temperature_2m&forecast_days=16&latitude='+Array.from({length:n},(_,i)=>40+i).join(',')+'&longitude='+Array.from({length:n},()=>-105).join(',');
- assert.deepEqual(forecastChunks(many(13)).map(u=>new URL(u).searchParams.get('latitude').split(',').length),[3,3,3,3,1]);
+ assert.deepEqual(forecastChunks(many(13),40000).map(u=>new URL(u).searchParams.get('latitude').split(',').length),[3,3,3,3,1]);
  assert.equal(forecastChunks(F+'47,48&longitude=-121,-122').length,1);
- // Day trips skip hourly data, so far more points fit in one request.
- assert.deepEqual(forecastChunks(many(64).replace('hourly=temperature_2m&','').replace('forecast_days=16','forecast_days=2')).map(u=>new URL(u).searchParams.get('latitude').split(',').length),[47,17]);
+ // A one-day request with the five hourly fields day trips use.
+ const dayTrip=many(64).replace('hourly=temperature_2m','hourly=temperature_2m,precipitation,precipitation_probability,wind_gusts_10m,snowfall').replace('forecast_days=16','start_date=2026-10-27&end_date=2026-10-27');
+ assert.deepEqual(forecastChunks(dayTrip).map(u=>new URL(u).searchParams.get('latitude').split(',').length),[33,31]);
+ assert.equal(forecastChunks('https://marine-api.open-meteo.com/v1/marine?hourly=wave_height&start_date=2026-10-27&end_date=2026-10-27&latitude=1,2&longitude=3,4').length,1,'marine requests chunk too');
  // A page cap of ~2 points: every 3-point chunk comes back cut off and is halved.
  const points=u=>new URL(u).searchParams.get('latitude').split(',').length;
  const capped=u=>{const full=meteo(u);return points(u)>2?full.slice(0,-8).padEnd(2100,' '):full};
  const b=fakeBrowser(capped);const t=createBrowserTransport(b.mcp,{wait:async()=>{}});
  const out=await t(many(7));assert.equal(out.length,7);assert.deepEqual(out.map(f=>f.latitude),[40,41,42,43,44,45,46]);
  const loaded=b.calls.filter(c=>c[0]!=='get_page_text').map(c=>points(c[1].url));
- assert.deepEqual(loaded,[3,2,1,3,2,1,1]);
+ assert.deepEqual(loaded,[5,3,2,1,2,2],'5 is cut off, halves to 3 (cut off) and 2, then 2 and 1; the second chunk of 2 fits');
  await assert.rejects(createBrowserTransport(fakeBrowser(u=>meteo(u).slice(0,-8).padEnd(2100,' ')).mcp,{wait:async()=>{}})(F+'47&longitude=-121'),e=>e.code==='too_large');
 });
 
@@ -220,4 +222,65 @@ test('elevation bands split at 3,000 ft only when both sides carry real terrain'
  assert.equal(mixed.minFt,Math.round(400*3.28084));assert.ok(Math.abs(mixed.below.share+mixed.above.share-1)<0.02);
  const low=elevationBands(grid(x=>x===19?1000:300));assert.ok(low.below&&!low.above,'5% above is not enough for its own band');
  assert.equal(elevationBands(grid(()=>-5)),null,'open water has no bands');
+});
+
+import {windowed,DAY_FROM,DAY_TO} from '../src/daytime.mjs';
+import {rateSurf,hourScore,angle,tideTurns} from '../src/surf.mjs';
+import {coastalRuns,sampleRun,exposure,travel} from '../src/coastline.mjs';
+import {evaluate} from '../../public/engine.mjs';
+
+// Hourly series for one date: fn(hour) -> value.
+const hours=(date,fn)=>Array.from({length:24},(_,h)=>fn(h));
+const day=(date,{temp=h=>12,rain=h=>0,prob=h=>10,gust=h=>15,snow=h=>0}={})=>({daily:{time:[date],temperature_2m_max:[30],temperature_2m_min:[-5],precipitation_sum:[40],precipitation_probability_max:[100],wind_gusts_10m_max:[90],snowfall_sum:[0]},
+ hourly:{time:Array.from({length:24},(_,h)=>`${date}T${String(h).padStart(2,'0')}:00`),temperature_2m:hours(date,temp),precipitation:hours(date,rain),precipitation_probability:hours(date,prob),wind_gusts_10m:hours(date,gust),snowfall:hours(date,snow)}});
+
+test('day trips are rated on 8 am-6 pm using end-of-hour accumulations',()=>{
+ assert.deepEqual([DAY_FROM,DAY_TO],[8,18]);
+ // Heavy rain overnight and at 08:00 (the 7-8 am hour) does not count; daytime is dry and mild.
+ const f=day('2026-10-27',{rain:h=>h<=8?6:0,prob:h=>h<=8?100:10,temp:h=>h>=8&&h<=18?10+h/2:2,gust:h=>h<9?80:20});
+ const w=windowed(f);
+ assert.deepEqual([w.daily.precipitation_sum[0],w.daily.precipitation_probability_max[0],w.daily.wind_gusts_10m_max[0]],[0,10,20]);
+ assert.deepEqual([w.daily.temperature_2m_min[0],w.daily.temperature_2m_max[0]],[14,19]);
+ assert.equal(evaluate(w,'2026-10-27',1,'Hiking','none').level,'excellent');
+ assert.equal(evaluate(f,'2026-10-27',1,'Hiking','none').level,'poor','the whole-day values would have rated it Poor');
+ // Rain stamped 18:00 (the 5-6 pm hour) counts; 19:00 does not.
+ assert.equal(windowed(day('2026-10-27',{rain:h=>h===18?20:0})).daily.precipitation_sum[0],20);
+ assert.equal(windowed(day('2026-10-27',{rain:h=>h===19?20:0})).daily.precipitation_sum[0],0);
+ const gap=day('2026-10-27');gap.hourly.precipitation[12]=null;assert.ok(Number.isNaN(windowed(gap).daily.precipitation_sum[0]),'missing hours stay unknown');
+});
+
+test('surf hours score size, period, swell direction and wind against the shore',()=>{
+ assert.equal(angle(350,10),20);assert.equal(angle(90,270),180);
+ const good={swell:1.5,period:12,swellDir:270,wind:8,windDir:90};
+ assert.equal(hourScore(good,270).score,2);
+ assert.equal(hourScore({...good,swell:0.3},270).score,0);
+ assert.equal(hourScore({...good,period:6},270).score,0);
+ assert.equal(hourScore({...good,swellDir:90},270).score,0,'swell from behind the coast');
+ assert.equal(hourScore({...good,wind:20,windDir:90},270).score,2,'offshore wind holds the face');
+ assert.equal(hourScore({...good,wind:20,windDir:270},270).score,0,'onshore wind');
+ assert.equal(hourScore({...good,wind:15,windDir:0},270).score,1,'cross-shore wind');
+ assert.equal(hourScore({...good,swell:null,wave:null},270).score,null);
+});
+
+test('a surf day is its best three-hour session and tides are reported',()=>{
+ const date='2026-10-27',t=Array.from({length:24},(_,h)=>`${date}T${String(h).padStart(2,'0')}:00`);
+ const marine={hourly:{time:t,wave_height:t.map(()=>1.6),swell_wave_height:t.map(()=>1.4),swell_wave_period:t.map(()=>12),swell_wave_direction:t.map(()=>275),sea_surface_temperature:t.map(()=>12),sea_level_height_msl:t.map((_,h)=>Math.sin(h/12.4*2*Math.PI))}};
+ // Onshore wind except a calm 9-12 window.
+ const wind={hourly:{time:t,wind_speed_10m:t.map((_,h)=>h>=9&&h<12?5:25),wind_direction_10m:t.map(()=>270),wind_gusts_10m:t.map(()=>30)}};
+ const r=rateSurf(marine,wind,270,[date]);
+ assert.equal(r.level,'excellent');assert.deepEqual([r.days[0].from,r.days[0].to],[9,12]);
+ assert.ok(r.days[0].tides.length>=2&&r.days[0].tides.some(x=>x.high)&&r.days[0].tides.some(x=>!x.high));
+ assert.equal(rateSurf(marine,{hourly:{...wind.hourly,wind_speed_10m:t.map(()=>25)}},270,[date]).level,'poor','onshore all day');
+ assert.equal(rateSurf(null,wind,270,[date]).level,'unknown');
+});
+
+test('coastline sampling finds the seaward side and drops sheltered water',()=>{
+ // A square island, counter-clockwise, as a quantization-free topology.
+ const topo={type:'Topology',arcs:[[[0,0],[1,0],[1,1],[0,1],[0,0]]],objects:{countries:{type:'GeometryCollection',geometries:[{type:'Polygon',arcs:[[0]]}]}}};
+ const runs=coastalRuns(topo);assert.equal(runs.length,1);
+ const pts=sampleRun(runs[0],20),south=pts.find(p=>p.lat===0&&p.lon>0.2&&p.lon<0.8),east=pts.find(p=>p.lon===1&&p.lat>0.2&&p.lat<0.8);
+ assert.ok(Math.abs(south.seaward-180)<1,'south shore faces south');assert.ok(Math.abs(east.seaward-90)<1,'east shore faces east');
+ const [lon,lat]=travel([0,0],90,111.2);assert.ok(Math.abs(lon-1)<0.01&&Math.abs(lat)<0.01);
+ assert.equal(exposure({lon:0,lat:0},90,()=>false),300,'open ocean');
+ assert.ok(exposure({lon:0,lat:0},90,([x])=>x>0.3)<50,'land just offshore');
 });

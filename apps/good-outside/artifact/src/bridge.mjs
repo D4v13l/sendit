@@ -3,7 +3,9 @@
 // It matches services.mjs's transport(url, timeout) contract so the shared client is unchanged.
 export const SERVER='host:claude_browser';
 export const TOOLS=['preview_start','navigate','get_page_text'];
-const HOSTS=new Set(['api.open-meteo.com','geocoding-api.open-meteo.com','router.project-osrm.org']);
+const HOSTS=new Set(['api.open-meteo.com','marine-api.open-meteo.com','geocoding-api.open-meteo.com','router.project-osrm.org']);
+// Point forecasts whose answers are per-coordinate and can be split into smaller requests.
+const pointForecast=u=>(u.hostname==='api.open-meteo.com'&&u.pathname==='/v1/forecast')||(u.hostname==='marine-api.open-meteo.com'&&u.pathname==='/v1/marine');
 
 export class BridgeError extends Error{constructor(code,message){super(message);this.name='BridgeError';this.code=code}}
 
@@ -49,12 +51,12 @@ const coords=(u,key)=>(u.searchParams.get(key)||'').split(',').filter(Boolean).m
 export function answers(url,data){
  const u=new URL(url);if(data==null||typeof data!=='object')return false;
  if(!Array.isArray(data)&&data.error===true)return typeof data.reason==='string';
- if(u.hostname==='api.open-meteo.com'){
+ if(pointForecast(u)){
   const lat=coords(u,'latitude'),lon=coords(u,'longitude'),list=Array.isArray(data)?data:[data];
   if(list.length!==lat.length||(lat.length>1&&!Array.isArray(data)))return false;
   // Open-Meteo snaps each point to its model grid, so allow a small offset.
-  const hourly=u.searchParams.has('hourly');
-  return list.every((f,i)=>f?.daily&&(!hourly||f?.hourly)&&Math.abs(f.latitude-lat[i])<0.3&&Math.abs(f.longitude-lon[i])<0.3);
+  const daily=u.searchParams.has('daily'),hourly=u.searchParams.has('hourly');
+  return list.every((f,i)=>(!daily||f?.daily)&&(!hourly||f?.hourly)&&Math.abs(f.latitude-lat[i])<0.3&&Math.abs(f.longitude-lon[i])<0.3);
  }
  if(u.hostname==='geocoding-api.open-meteo.com')return !Array.isArray(data)&&'generationtime_ms' in data&&!('daily' in data);
  if(u.hostname==='router.project-osrm.org'){
@@ -65,11 +67,18 @@ export function answers(url,data){
 }
 
 // Forecast requests for many points are split so each page stays small enough to read in full.
-// Measured: about 600 characters per point, plus ~620 per forecast day with hourly data or ~120 without.
-export function forecastChunks(url,budget=40000){
- const u=new URL(url);if(u.hostname!=='api.open-meteo.com')return null;
+// Measured: about 600 characters per point, ~460 per day of hourly timestamps, ~150 per hourly
+// field per day and ~15 per daily field per day.
+export function requestDays(u){
+ const a=u.searchParams.get('start_date'),b=u.searchParams.get('end_date');
+ if(a&&b)return Math.max(1,Math.round((Date.parse(b)-Date.parse(a))/864e5)+1);
+ return Math.max(1,Number(u.searchParams.get('forecast_days'))||16);
+}
+export function forecastChunks(url,budget=60000){
+ const u=new URL(url);if(!pointForecast(u))return null;
  const lat=coords(u,'latitude'),lon=coords(u,'longitude');if(lat.length<2)return null;
- const days=Math.max(1,Number(u.searchParams.get('forecast_days'))||16),perPoint=600+days*(u.searchParams.has('hourly')?620:120);
+ const fields=k=>(u.searchParams.get(k)||'').split(',').filter(Boolean).length,hourly=fields('hourly');
+ const perPoint=600+requestDays(u)*((hourly?460+hourly*150:0)+fields('daily')*15);
  const size=Math.max(1,Math.floor(budget/perPoint));
  return chunkUrls(u,lat,lon,size);
 }
@@ -121,7 +130,7 @@ export function createBrowserTransport(mcp,{wait=ms=>new Promise(r=>setTimeout(r
   const host=new URL(url).hostname;if(!HOSTS.has(host))throw new BridgeError('bad_request','Host not allowed: '+host);
   // Consent prompts and site approvals can hold the first call, so allow well over the HTTP timeout.
   const limit=Math.max(90000,timeout||0),chunks=forecastChunks(url);
-  if(!chunks){if(host!=='api.open-meteo.com'||new URL(url).pathname!=='/v1/forecast')return page(url,limit);return (await forecast(url,limit))[0]}
+  if(!chunks){if(!pointForecast(new URL(url)))return page(url,limit);return (await forecast(url,limit))[0]}
   const out=[];for(const c of chunks)out.push(...await forecast(c,limit));return out;
  };
  // One tab serves every request, so requests must not overlap.
