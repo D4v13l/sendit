@@ -1,7 +1,8 @@
-// Forecasts where the desktop app's built-in browser is missing (phones, the web). Searching a new
-// starting location fires a Claude background task through the Claude Code Remote connector; the
-// task fetches Open-Meteo forecasts for every nearby area and saves them in this viewer's private
-// storage, where the page reads them. Nothing is fetched at any other time.
+// Forecasts where the desktop app's built-in browser is missing (phones, the web). Searching a
+// starting location, changing activity or tapping ↻ fires a Claude background task through the
+// Claude Code Remote connector when saved forecasts do not cover the areas shown; the task fetches
+// Open-Meteo forecasts for up to 30 nearby areas, the current activity's first, and saves them in
+// this viewer's private storage, where the page reads them. Nothing is fetched at any other time.
 // It matches services.mjs's transport(url) contract so the shared client is unchanged.
 export const SERVER='Claude Code Remote',TOOL='fire_trigger',TRIGGER='trig_01SY6HoyK5ZB8WHzbsLz2ZRh';
 // PART and MAX_POINTS match the task's fetch script.
@@ -25,12 +26,12 @@ export function createRemote({mcp,db,uid,origin}){
  const col=db.collection('data/users/'+uid),known=new Map();let armed=null,pruned=false;
  const remember=doc=>{for(const p of doc.points||[])if(p?.forecast)known.set(pointKey(p.lat,p.lon),{...p.forecast,retrievedAt:doc.fetchedAtMs})};
  const fresh=f=>f&&Date.now()-f.retrievedAt<FRESH_MS;
- // The newest complete fetch for this origin that is still fresh.
+ // Complete fetches for this origin that are still fresh.
  async function stored(key){
   const snap=await col.where('origin','==',key).get(),groups=new Map();
   for(const s of snap.docs){const d=s.data();if(d?.status!=='ok'||!(Date.now()-d.fetchedAtMs<FRESH_MS))continue;if(!groups.has(d.request))groups.set(d.request,[]);groups.get(d.request).push(d)}
-  const best=[...groups.values()].filter(g=>g.length===g[0].parts).sort((a,b)=>b[0].fetchedAtMs-a[0].fetchedAtMs)[0];
-  best?.forEach(remember);
+  // Every complete fetch, oldest first, so a later fetch (another activity's areas) adds to earlier ones.
+  for(const g of [...groups.values()].filter(g=>g.length===g[0].parts).sort((a,b)=>a[0].fetchedAtMs-b[0].fetchedAtMs))g.forEach(remember);
  }
  // Resolves with every part of one request, or rejects on its error document or the deadline.
  function wait(id,parts){

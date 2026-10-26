@@ -4,6 +4,7 @@ import {extractJSON,findTabId,resultText,createBrowserTransport,BridgeError,isBl
 import {searchPlaces,placeLabel} from '../src/places.mjs';
 import {visibleLabels,labelThreshold,placeLabels,showRange,showPeak,showParkLabel} from '../src/basemap.mjs';
 import {createRegionClient} from '../../public/services.mjs';
+import {createRemote,originKey} from '../src/remote.mjs';
 
 const text=t=>({content:[{type:'text',text:t}]});
 
@@ -333,4 +334,24 @@ test('areas sit at their middle and substantial places win scarce nearby slots',
 test('garbled source names are repaired or visibly marked',()=>{
  assert.equal(cleanName('Pe\uFFFDa Blanca Wilderness Study Area'),'Peña Blanca Wilderness Study Area');
  assert.equal(cleanName('Caf\uFFFD Rocks'),'Caf? Rocks');assert.equal(cleanName('Index'),'Index');
+});
+
+test('the browser transport logs one summary per page, with the page start only on failure',async()=>{
+ const logged=[],t=createBrowserTransport(fakeBrowser(service).mcp,{log:e=>logged.push(e)});
+ await t(F+'47&longitude=-121');
+ assert.equal(logged.length,1);assert.equal(logged[0].ok,true);assert.equal(logged[0].opened,true);assert.equal(logged[0].tabId,3);assert.equal(logged[0].head,undefined);
+ const failing=[],bad=createBrowserTransport(fakeBrowser(()=>'<p>Site not allowed</p>').mcp,{wait:async()=>{},log:e=>failing.push(e)});
+ await assert.rejects(bad(F+'47&longitude=-121'),e=>e.code==='unreadable');
+ assert.equal(failing[0].code,'unreadable');assert.equal(failing[0].reads,6);assert.match(failing[0].head,/Site not allowed/);
+});
+
+test('saved forecasts from several fetches for one origin are all used',async()=>{
+ const origin={lat:47.6,lon:-122.3},key=originKey(origin),now=Date.now();
+ const f=(lat,lon)=>({latitude:lat,longitude:lon,daily:{time:[]},hourly:{time:[]}});
+ const saved=[{request:'fc-a',origin:key,status:'ok',part:0,parts:1,fetchedAtMs:now-60e3,points:[{lat:47,lon:-121,forecast:f(47,-121)}]},
+  {request:'fc-b',origin:key,status:'ok',part:0,parts:1,fetchedAtMs:now,points:[{lat:48,lon:-121,forecast:f(48,-121)}]}];
+ const db={collection:()=>({where:()=>({get:async()=>({docs:saved.map(d=>({data:()=>d}))})})})};
+ const remote=createRemote({mcp:{callTool:async()=>{throw Error('should not fetch')}},db,uid:'u',origin:()=>origin});
+ const both=await remote.transport(F+'47,48&longitude=-121,-121');
+ assert.deepEqual(both.map(x=>x.latitude),[47,48]);
 });

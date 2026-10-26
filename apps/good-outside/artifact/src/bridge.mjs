@@ -87,7 +87,8 @@ function chunkUrls(u,lat,lon,size){
  return out;
 }
 
-export function createBrowserTransport(mcp,{wait=ms=>new Promise(r=>setTimeout(r,ms))}={}){
+// `log` receives one summary per page load: the tools used, reads, text length and outcome.
+export function createBrowserTransport(mcp,{wait=ms=>new Promise(r=>setTimeout(r,ms)),log=()=>{}}={}){
  let tabId=null,opened=false,queue=Promise.resolve();
  const call=async(tool,input,timeout)=>{
   try{return await mcp.callTool(SERVER,tool,input,{cache:false,signal:AbortSignal.timeout(timeout)})}
@@ -96,7 +97,12 @@ export function createBrowserTransport(mcp,{wait=ms=>new Promise(r=>setTimeout(r
  const withTab=input=>tabId==null?input:{...input,tabId};
  // Load one URL and read back JSON that answers it.
  const page=async(url,limit)=>{
-  const open=async()=>{const r=await call('preview_start',{url},limit);opened=true;tabId=findTabId(r)};
+  const at=Date.now(),host=new URL(url).hostname,entry={kind:'page',host,tabId,reads:0};
+  try{const data=await load(url,limit,entry);const {head,...rest}=entry;log({...rest,ms:Date.now()-at,ok:true});return data}
+  catch(e){log({...entry,ms:Date.now()-at,code:e?.code||e?.name,message:String(e?.message||'').slice(0,200)});throw e}
+ };
+ const load=async(url,limit,entry)=>{
+  const open=async()=>{const r=await call('preview_start',{url},limit);opened=true;tabId=findTabId(r);entry.opened=true;entry.tabId=tabId;if(tabId==null)entry.noTabId=String(resultText(r)).slice(0,160)};
   if(!opened)await open();
   else{try{await call('navigate',withTab({url}),limit)}catch(e){
    // The viewer may have closed the tab; open a fresh one once.
@@ -105,7 +111,7 @@ export function createBrowserTransport(mcp,{wait=ms=>new Promise(r=>setTimeout(r
   let text='',stale=false,cutOff=false;
   for(const delay of [0,500,1000,1500,2500,4000]){
    if(delay)await wait(delay);
-   const previous=text;text=resultText(await call('get_page_text',withTab({}),limit));const data=extractJSON(text);
+   const previous=text;text=resultText(await call('get_page_text',withTab({}),limit));const data=extractJSON(text);entry.reads++;entry.chars=text.length;entry.head=text.slice(0,160);
    if(data!==undefined&&answers(url,data)){if(!Array.isArray(data)&&data.error===true)throw Error(data.reason||'Data unavailable');return data}
    stale=data!==undefined;
    // The same unparseable JSON twice means the page has loaded and its text is being cut off.

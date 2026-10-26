@@ -11,14 +11,20 @@ let basemap=null,surface={grid:null,weather:null,rev:0};
 let bridge=null,bridgeOk=false;try{bridgeOk=localStorage.getItem('good-outside-bridge-ok')==='1'}catch{}
 // Without the built-in browser (phones, the web), searching a location fetches forecasts through a Claude background task instead.
 let remote=null,hostMissing=false;
-const mcpReady=(window.claude?.use?window.claude.use('mcp'):Promise.resolve(null)).then(async m=>{bridge=m?createBrowserTransport(m):null;if(!m)return;
+// A short log of live-data calls in the viewer's private storage, so the owner can ask Claude to read
+// what failed. Nothing is written for viewers without storage.
+const diagLog=[];let diagDoc=null,diagTimer=null;
+function diag(event){diagLog.push({at:new Date().toISOString(),...event});if(diagLog.length>60)diagLog.shift();if(!diagDoc)return;clearTimeout(diagTimer);diagTimer=setTimeout(()=>diagDoc.set({updatedAtMs:Date.now(),log:diagLog}).catch(()=>{}),1500)}
+const clip=(v,n=200)=>String(v??'').slice(0,n);
+const mcpReady=(window.claude?.use?window.claude.use('mcp'):Promise.resolve(null)).then(async m=>{bridge=m?createBrowserTransport(m,{log:diag}):null;if(!m){diag({kind:'boot',mcp:false});return}
  const listed=await m.listTools().catch(()=>null);hostMissing=!!listed&&!listed.servers.some(s=>s.server===SERVER);
  const [db,user]=await Promise.all([window.claude.use('db'),window.claude.use('user')]);const uid=await user?.id();
- if(db&&uid)remote=createRemote({mcp:m,db,uid,origin:()=>state.origin});
-}).catch(()=>{});
+ if(db&&uid){remote=createRemote({mcp:m,db,uid,origin:()=>state.origin});diagDoc=db.collection('data/users/'+uid).doc('diagnostics')}
+ diag({kind:'boot',mcp:true,servers:listed?listed.servers.map(s=>s.server):null,hostMissing,remote:!!remote,bridgeOk});
+}).catch(e=>diag({kind:'boot',error:clip(e?.code||e?.message)}));
 const remoteMode=()=>!!remote&&(hostMissing||!bridge);
 // Every nearby area for every activity, so changing activity or dates after a search needs no new fetch.
-const searchPoints=o=>[...new Map(activities.flatMap(a=>nearby(o,a)).map(r=>[r.id,r.point])).values()];
+const searchPoints=o=>[...new Map([state.activity,...activities].flatMap(a=>nearby(o,a)).map(r=>[r.id,r.point])).values()];
 const needsNights=()=>state.camping!=='none'&&state.days>1;
 function trimForecast(url){const u=new URL(url);if(u.hostname==='api.open-meteo.com'&&u.searchParams.has('forecast_days')){const trip=dates(state.start,state.days);u.searchParams.delete('forecast_days');u.searchParams.set('start_date',trip[0]);u.searchParams.set('end_date',trip.at(-1));u.searchParams.set('hourly',needsNights()?'temperature_2m':HOURLY_DAY_FIELDS.join(','))}return u.toString()}
 // Day trips rate 8 am–6 pm; overnight trips rate full days and the nights between them.
@@ -32,11 +38,14 @@ function ratingNote(){if(needsNights())return 'Full days and nights rated.';cons
 const withHourly=data=>{for(const f of Array.isArray(data)?data:[data])if(f?.daily&&!f.hourly)f.hourly={time:[],temperature_2m:[]};return data};
 // A forecast fetched for earlier dates may not reach a newly chosen trip.
 const covers=f=>!f?.daily?.time||(dates(state.start,state.days).every(d=>f.daily.time.includes(d))&&(needsNights()?f.hourly?.temperature_2m?.length>0:remoteMode()||f.hourly?.precipitation?.length>0));
-const transport=async(url,timeout)=>{await mcpReady;
+const liveData=async(url,timeout)=>{await mcpReady;
  if(bridge&&!hostMissing){try{const data=withHourly(await bridge(trimForecast(url),timeout));if(!bridgeOk){bridgeOk=true;try{localStorage.setItem('good-outside-bridge-ok','1')}catch{}}return data}
-  catch(error){if(!remote||!['server_not_connected','capability_disabled','not_granted'].includes(error?.code))throw error;hostMissing=true}}
+  catch(error){if(!remote||!['server_not_connected','capability_disabled','not_granted'].includes(error?.code))throw error;hostMissing=true;diag({kind:'switch',to:'remote',code:error.code})}}
  if(remote)return withHourly(await remote.transport(url));
  throw new BridgeError('server_not_connected','Built-in browser unavailable')};
+const transport=async(url,timeout)=>{const u=new URL(url),at=Date.now(),entry={kind:'request',host:u.hostname,points:(u.searchParams.get('latitude')||'').split(',').filter(Boolean).length||undefined};
+ try{const data=await liveData(url,timeout);diag({...entry,mode:remoteMode()?'remote':'browser',ms:Date.now()-at,ok:true});return data}
+ catch(error){if(error?.code!=='desktop_only')diag({...entry,mode:remoteMode()?'remote':'browser',ms:Date.now()-at,code:clip(error?.code||error?.name,40),message:clip(error?.message)});throw error}};
 const client=createRegionClient(transport);
 function liveDataMessage(error){const code=error?.code;
  if(['stale','too_large','unreadable'].includes(code))return error.message+' Tap ↻ to try again.';
@@ -55,7 +64,7 @@ let gridMode=false,gridCenter=null,gridPoints=[],gridWeather={},gridGroup=null,g
 
 const fmtDate=d=>new Date(d+'T12:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'});const temp=x=>Math.round(x*9/5+32)+'°F';const drive=s=>{let m=Math.max(1,Math.round(s/60));return ((m>=60?Math.floor(m/60)+'h ':'')+(m%60?m%60+'m':'')).trim()};
 const save=()=>{try{localStorage.setItem('good-outside-v1',JSON.stringify(state))}catch{}};
-function notice(text,error=false){$('notice').textContent=text;$('notice').classList.toggle('error',error)}
+function notice(text,error=false){$('notice').textContent=text;$('notice').classList.toggle('error',error);if(error||/unknown|unavailable|not allowed|could not|still being/i.test(text))diag({kind:'notice',text:clip(text,300)})}
 function sync(){if(state.dateMode!=='custom')state.start=nearTermStart(state.dateMode,state.origin?.timezone); $('activity').value=state.activity;$('origin').value=state.origin?.name||'';$('start').min=destinationToday(state.origin?.timezone);$('start').max=dates(destinationToday(state.origin?.timezone),14)[13];$('start').value=state.start;$('start').dataset.dateMode=state.dateMode;$('duration').value=state.days;$('camping').value=state.camping;$('trip').innerHTML=`${tripDateLabel()} · ${state.days} ${state.days===1?'day':'days'}${state.camping==='none'?'':state.camping==='car'?' · Car camping':' · Backcountry'} <span>⌄</span>`;}
 function candidates(){return regions.filter(r=>r.activities.includes(state.activity)&&!(state.camping!=='none'&&r.noCamping)&&!(state.camping==='car'&&r.noCarCamping)&&!(state.camping==='backcountry'&&r.noBackcountry))}
 function assessment(r){return r.coast?surfRating(r):rate(weather[r.id])}
@@ -91,6 +100,8 @@ async function load(force=false){
  render();fitMap();notice(live?live+' Missing data stays unknown.':errors.length?errors.join('. ')+'. Refresh to retry; missing data stays unknown.':`${remoteMode()?'Forecasts fetched':'Updated'} ${new Date(weatherAt||Date.now()).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${origin.name} · ${ratingNote()}`,!!errors.length);if(remoteMode()){if(!errors.length)remote.prune()}else if(!live)loadSurface(force);return true;
 }
 async function chooseOrigin(origin){++searchRevision;state.origin=origin;sync();save();$('places').hidden=true;await mcpReady;await ensureTiles(origin);remote?.arm(origin,searchPoints(origin));await load();}
+// Without the built-in browser, forecasts are fetched only on the viewer's own request: a search, an activity change or ↻.
+function armRemote(){if(remote&&state.origin)remote.arm(state.origin,searchPoints(state.origin))}
 $('controls').onsubmit=async e=>{e.preventDefault();const query=$('origin').value.trim();if(query.length<2){notice('Enter at least two characters for a town or city.',true);return}const rev=++searchRevision;notice('Finding matching places…');$('places').hidden=true;
  let results=[];try{results=searchPlaces(await loadPlaces(),query).map(r=>({label:placeLabel(r),origin:{lat:r[4],lon:r[5],name:placeLabel(r),country:r[1]}}))}catch{}
  if(rev!==searchRevision)return;
@@ -100,8 +111,8 @@ $('controls').onsubmit=async e=>{e.preventDefault();const query=$('origin').valu
   catch(error){if(rev!==searchRevision)return;notice(liveDataMessage(error)||'Location search unavailable. Try a nearby town name.',true);return}}
  if(!results.length){notice('No location found. Try a nearby town.',true);return}
  $('places').innerHTML=results.map((p,i)=>`<button type="button" data-place="${i}">${esc(p.label)}</button>`).join('');$('places').hidden=false;notice('Choose the matching starting location.');$('places').querySelectorAll('button').forEach(b=>b.onclick=()=>chooseOrigin(results[+b.dataset.place].origin))};
-$('activity').onchange=()=>{state.activity=$('activity').value;save();drawSurface();load()};$('trip').onclick=()=>{sync();$('settings').showModal()};$('settings-form').onsubmit=e=>{if(e.submitter?.value!=='apply')return;if(surfing()&&$('start').value>=$('start').min&&$('start').value<=$('start').max){state.start=$('start').value;state.dateMode=$('start').dataset.dateMode||'custom';state.days=+$('duration').value;state.camping=$('camping').value;sync();save();if(state.origin&&!busy&&!surfCovers())load(true);else{render();drawCoast()}return}if(!$('start').value||$('start').value<$('start').min||$('start').value>$('start').max){e.preventDefault();$('start').reportValidity();return}state.start=$('start').value;state.dateMode=$('start').dataset.dateMode||'custom';state.days=+$('duration').value;state.camping=$('camping').value;sync();save();render();if(state.origin&&!busy&&Object.keys(weather).length&&!Object.values(weather).every(covers))load(true);else{if(surface.weather&&!Object.values(surface.weather).every(covers))loadSurface(true);else drawSurface();if(gridMode&&gridCenter&&!Object.values(gridWeather).every(covers))loadGrid(gridCenter,true)}};
-$('refresh').onclick=()=>{if(!busy)load(true)};$('about').onclick=()=>$('method').showModal();$('close-method').onclick=()=>$('method').close();$('close-detail').onclick=()=>{detailSampleId=null;$('detail').close()};document.addEventListener('click',e=>{if(!e.target.closest('.origin-wrap'))$('places').hidden=true});
+$('activity').onchange=()=>{state.activity=$('activity').value;save();drawSurface();armRemote();load()};$('trip').onclick=()=>{sync();$('settings').showModal()};$('settings-form').onsubmit=e=>{if(e.submitter?.value!=='apply')return;if(surfing()&&$('start').value>=$('start').min&&$('start').value<=$('start').max){state.start=$('start').value;state.dateMode=$('start').dataset.dateMode||'custom';state.days=+$('duration').value;state.camping=$('camping').value;sync();save();if(state.origin&&!busy&&!surfCovers())load(true);else{render();drawCoast()}return}if(!$('start').value||$('start').value<$('start').min||$('start').value>$('start').max){e.preventDefault();$('start').reportValidity();return}state.start=$('start').value;state.dateMode=$('start').dataset.dateMode||'custom';state.days=+$('duration').value;state.camping=$('camping').value;sync();save();render();if(state.origin&&!busy&&Object.keys(weather).length&&!Object.values(weather).every(covers))load(true);else{if(surface.weather&&!Object.values(surface.weather).every(covers))loadSurface(true);else drawSurface();if(gridMode&&gridCenter&&!Object.values(gridWeather).every(covers))loadGrid(gridCenter,true)}};
+$('refresh').onclick=()=>{if(!busy){armRemote();load(true)}};$('about').onclick=()=>$('method').showModal();$('close-method').onclick=()=>$('method').close();$('close-detail').onclick=()=>{detailSampleId=null;$('detail').close()};document.addEventListener('click',e=>{if(!e.target.closest('.origin-wrap'))$('places').hidden=true});
 function dayRows(a,ski){return a.days.length?'<div class="forecast-days">'+a.days.map(d=>`<div class="weather-day"><strong>${fmtDate(d.date)}</strong><span>${temp(d.low)}–${temp(d.high)} · ${Math.round(d.prob)}% precipitation<br>${d.rain.toFixed(1)} mm precipitation · gusts ${Math.round(d.gust)} km/h${ski?'<br>'+d.snow.toFixed(1)+' cm forecast snowfall':''}${d.nightLow!=null?'<br>Overnight minimum '+temp(d.nightLow):''}</span></div>`).join('')+'</div>':'<p class="callout">No complete forecast for this trip. Choose dates within the next two weeks or refresh if the weather service is unavailable.</p>'}
 const feet=m=>Math.round(m*3.28084).toLocaleString()+' ft';
 const sentence=t=>t?t.charAt(0).toUpperCase()+t.slice(1)+(/[.!?]$/.test(t)?'':'.'):'';
