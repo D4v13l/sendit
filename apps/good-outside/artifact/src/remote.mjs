@@ -1,6 +1,6 @@
 // Forecasts where the desktop app's built-in browser is missing (phones, the web). Searching a
-// starting location, changing activity or tapping ↻ fires a Claude background task through the
-// Claude Code Remote connector when saved forecasts do not cover the areas shown; the task fetches
+// starting location or tapping ↻ fires a Claude background task through the Claude Code Remote
+// connector when saved forecasts do not cover the areas shown; the task fetches
 // Open-Meteo forecasts for up to 30 nearby areas, the current activity's first, and saves them in
 // this viewer's private storage, where the page reads them. Nothing is fetched at any other time.
 // It matches services.mjs's transport(url) contract so the shared client is unchanged.

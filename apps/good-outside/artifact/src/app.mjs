@@ -4,6 +4,8 @@ let saved={};try{saved=JSON.parse(localStorage.getItem('good-outside-v1'))||{}}c
 let state={dateMode:['today','tomorrow','weekend','custom'].includes(saved.dateMode)?saved.dateMode:(saved.start&&saved.start!==dateKey()?'custom':'today'),origin:saved.origin||null,activity:saved.activity||'Hiking',start:saved.start>=dateKey()?saved.start:dateKey(),days:Math.max(1,Math.min(7,Number(saved.days)||1)),camping:saved.camping||'none'};
 if(!['Hiking','Climbing','Biking','Bikepacking','Backpacking','Skiing','Backcountry skiing','Surfing'].includes(state.activity))state.activity='Hiking';if(!['none','car','backcountry'].includes(state.camping))state.camping='none';
 if(state.origin&&(!Number.isFinite(state.origin.lat)||!Number.isFinite(state.origin.lon)||Math.abs(state.origin.lat)>90||Math.abs(state.origin.lon)>180))state.origin=null;
+// Everything loaded for the current starting point, by area id, so settings changes can re-rate it without fetching.
+let known={origin:null,weather:{},drives:{},surf:{}},settingsChanged=false;
 let catalog=[],regions=[],weather={},routes={},weatherAt=null,busy=false,revision=0,map,markers=[],originMarker,searchRevision=0;let mapError=false;let driveInfo={};const driveCache=new Map();
 async function cachedDrives(origin,list,force){const key=JSON.stringify([origin.lat,origin.lon,list.map(r=>r.id).sort()]),hit=driveCache.get(key);if(!force&&hit&&Date.now()-hit.at<30*60*1000)return hit.data;const data=await driveTimes(transport,origin,list);if(Object.values(data).some(d=>d.basis==='road'))driveCache.set(key,{at:Date.now(),data});return data}
 let basemap=null,surface={grid:null,weather:null,rev:0};
@@ -92,18 +94,55 @@ async function load(force=false){
  if(!state.origin){render();return}
  if(surfing())return loadCoast(force);
  basemap?.setCoast([]);
- exitGrid(false);if(!surface.grid||surface.grid.points[0].id!==gradientGrid(state.origin).points[0].id)clearSurface();const rev=++revision,origin={...state.origin};regions=[];catalog=[];busy=true;weather={};routes={};weatherAt=null;render();fitMap();
+ exitGrid(false);if(!surface.grid||surface.grid.points[0].id!==gradientGrid(state.origin).points[0].id)clearSurface();const rev=++revision,origin={...state.origin};regions=[];catalog=[];busy=true;weather={};routes={};weatherAt=null;knownFor(origin);markStale(false);render();fitMap();
  await ensureTiles(origin);if(rev!==revision)return false;
  const local=nearby(origin,state.activity);catalog=local;regions=local;
  if(!local.length){busy=false;render();notice('No '+state.activity.toLowerCase()+' records near '+origin.name+'. Coverage varies by source; zoom in for point forecasts.',true);return true}
  notice(remoteMode()?'Loading forecasts for '+local.length+' nearby regions. A new search takes a minute or two.':'Checking '+local.length+' nearby regions for '+origin.name+'…');
  const results=await Promise.allSettled([client.weather(local,force),cachedDrives(origin,local,force)]);remote?.disarm();
  if(rev!==revision)return false;
- busy=false;weather=results[0].status==='fulfilled'?results[0].value:{};driveInfo=results[1].status==='fulfilled'?results[1].value:{};routes=Object.fromEntries(Object.entries(driveInfo).map(([id,d])=>[id,d.seconds]));weatherAt=results[0].status==='fulfilled'?(Object.values(weather)[0]?.retrievedAt||null):null;
+ busy=false;weather=results[0].status==='fulfilled'?results[0].value:{};driveInfo=results[1].status==='fulfilled'?results[1].value:{};routes=Object.fromEntries(Object.entries(driveInfo).map(([id,d])=>[id,d.seconds]));weatherAt=results[0].status==='fulfilled'?(Object.values(weather)[0]?.retrievedAt||null):null;Object.assign(known.weather,weather);Object.assign(known.drives,driveInfo);
  const first=Object.values(weather)[0];if(first?.timezone){state.origin.timezone=first.timezone;sync();save()}
  const errors=results.map((r,i)=>r.status==='rejected'?(i===0?'Weather unavailable':'Driving estimates unavailable'):null).filter(Boolean);
  const live=results.map(r=>r.status==='rejected'?liveDataMessage(r.reason):null).find(Boolean);
- render();fitMap();notice(live?live+' Missing data stays unknown.':errors.length?errors.join('. ')+'. Refresh to retry; missing data stays unknown.':`${remoteMode()?'Forecasts fetched':'Updated'} ${new Date(weatherAt||Date.now()).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${origin.name} · ${ratingNote()}`,!!errors.length);if(remoteMode()){if(!errors.length)remote.prune()}else if(!live)loadSurface(force);return true;
+ render();fitMap();notice(live?live+' Missing data stays unknown.':errors.length?errors.join('. ')+'. Refresh to retry; missing data stays unknown.':`${remoteMode()?'Forecasts fetched':'Updated'} ${new Date(weatherAt||Date.now()).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${origin.name} · ${ratingNote()}`,!!errors.length);if(remoteMode()){if(!errors.length)remote.prune()}else if(!live)loadSurface(force);afterLoad();return true;
+}
+// New forecasts and drive times are fetched only by a search, opening a saved trip, or ↻. Changing
+// activity, dates or camping re-rates what is already loaded for this starting point; whatever that
+// does not cover stays unknown, and ↻ is highlighted until it is loaded.
+function knownFor(origin){const key=origin.lat.toFixed(4)+','+origin.lon.toFixed(4);if(known.origin!==key)known={origin:key,weather:{},drives:{},surf:{}}}
+function markStale(on){const b=$('refresh');b.classList.toggle('needs-refresh',on);b.title=on?'Load forecasts and drive times for these settings':'Refresh weather and routes';b.setAttribute('aria-label',b.title)}
+function afterLoad(){if(settingsChanged){settingsChanged=false;applySettings()}}
+async function applySettings(){
+ if(!state.origin){render();return}
+ // A load in progress re-applies the settings when it finishes.
+ if(busy){settingsChanged=true;return}
+ const origin={...state.origin},coast=surfing(),wasCoast=catalog.some(r=>r.coast),rev=++revision;knownFor(origin);
+ if(coast){
+  let rows;try{rows=await loadCoastRows()}catch{notice('Coastal data could not load. Tap ↻ to retry.',true);return}
+  // A search or ↻ that started meanwhile wins.
+  if(rev!==revision||busy)return;
+  const all=nearbyCoast(rows,origin),seen=new Set();catalog=all;regions=all.filter(r=>r.name.startsWith('Open coast')||!seen.has(r.name)&&seen.add(r.name)).slice(0,24);
+  surf=Object.fromEntries(all.filter(r=>surfCovered(known.surf[r.id])).map(r=>[r.id,known.surf[r.id]]));weather={};
+  if(gridMode)exitGrid(false);
+ }else{
+  await ensureTiles(origin);if(rev!==revision||busy)return;basemap?.setCoast([]);
+  catalog=regions=nearby(origin,state.activity);surf={};
+  weather=Object.fromEntries(regions.filter(r=>known.weather[r.id]&&covers(known.weather[r.id])).map(r=>[r.id,known.weather[r.id]]));
+ }
+ driveInfo=Object.fromEntries(regions.filter(r=>known.drives[r.id]).map(r=>[r.id,known.drives[r.id]]));routes=Object.fromEntries(Object.entries(driveInfo).map(([id,d])=>[id,d.seconds]));
+ render();if(coast!==wasCoast)fitMap();
+ const rated=coast?Object.keys(surf).length:regions.filter(r=>weather[r.id]).length,mapped=coast?catalog.filter(r=>surf[r.id]).length:0;
+ let stale=coast?mapped<catalog.length:rated<regions.length;
+ // Viewers who cannot load live data at all get no prompt to.
+ const canFetch=!!bridge||!!remote;
+ if(coast)drawSurface();
+ else if(surface.weather&&Object.values(surface.weather).every(covers))drawSurface();
+ else{basemap?.setWeather(null);$('weather-key').hidden=remoteMode()||!canFetch;if(!$('weather-key').hidden){stale=true;$('weather-key-status').textContent='Tap ↻ to colour the map for these settings.'}}
+ if(gridMode&&!coast&&!Object.values(gridWeather).every(covers)){stale=true;$('grid-status').textContent='Tap ↻ to update these samples for these settings.'}else if(gridMode)renderGrid();
+ if(regions.some(r=>!driveInfo[r.id]))stale=true;
+ markStale(stale&&canFetch&&regions.length>0);
+ notice(!canFetch?'Re-rated for these settings. Live forecasts and drive times are not available in this view.':!regions.length?'No '+state.activity.toLowerCase()+' areas near '+origin.name+'.':stale?(rated?`Settings changed: ${rated} of ${regions.length} areas re-rated from loaded forecasts. Tap ↻ to load the rest.`:'Settings changed. Tap ↻ to load forecasts and drive times for them.'):`Re-rated for these settings · ${origin.name} · ${coast?'Surf on the best three hours of each day.':ratingNote()}`);
 }
 async function chooseOrigin(origin){++searchRevision;state.origin=origin;sync();save();$('places').hidden=true;await mcpReady;await ensureTiles(origin);remote?.arm(origin,searchPoints(origin));await load();}
 // Without the built-in browser, forecasts are fetched only on the viewer's own request: a search, an activity change or ↻.
@@ -117,8 +156,8 @@ $('controls').onsubmit=async e=>{e.preventDefault();const query=$('origin').valu
   catch(error){if(rev!==searchRevision)return;notice(liveDataMessage(error)||'Location search unavailable. Try a nearby town name.',true);return}}
  if(!results.length){notice('No location found. Try a nearby town.',true);return}
  $('places').innerHTML=results.map((p,i)=>`<button type="button" data-place="${i}">${esc(p.label)}</button>`).join('');$('places').hidden=false;notice('Choose the matching starting location.');$('places').querySelectorAll('button').forEach(b=>b.onclick=()=>chooseOrigin(results[+b.dataset.place].origin))};
-$('activity').onchange=()=>{state.activity=$('activity').value;save();drawSurface();armRemote();load()};$('trip').onclick=()=>{sync();$('settings').showModal()};$('settings-form').onsubmit=e=>{if(e.submitter?.value!=='apply')return;if(surfing()&&$('start').value>=$('start').min&&$('start').value<=$('start').max){state.start=$('start').value;state.dateMode=$('start').dataset.dateMode||'custom';state.days=+$('duration').value;state.camping=$('camping').value;sync();save();if(state.origin&&!busy&&!surfCovers())load(true);else{render();drawCoast()}return}if(!$('start').value||$('start').value<$('start').min||$('start').value>$('start').max){e.preventDefault();$('start').reportValidity();return}state.start=$('start').value;state.dateMode=$('start').dataset.dateMode||'custom';state.days=+$('duration').value;state.camping=$('camping').value;sync();save();render();if(state.origin&&!busy&&Object.keys(weather).length&&!Object.values(weather).every(covers))load(true);else{if(surface.weather&&!Object.values(surface.weather).every(covers))loadSurface(true);else drawSurface();if(gridMode&&gridCenter&&!Object.values(gridWeather).every(covers))loadGrid(gridCenter,true)}};
-$('refresh').onclick=()=>{if(!busy){armRemote();load(true)}};$('about').onclick=()=>$('method').showModal();$('close-method').onclick=()=>$('method').close();$('close-detail').onclick=()=>{detailSampleId=null;$('detail').close()};document.addEventListener('click',e=>{if(!e.target.closest('.origin-wrap'))$('places').hidden=true});
+$('activity').onchange=()=>{state.activity=$('activity').value;save();applySettings()};$('trip').onclick=()=>{sync();$('settings').showModal()};$('settings-form').onsubmit=e=>{if(e.submitter?.value!=='apply')return;if(surfing()&&$('start').value>=$('start').min&&$('start').value<=$('start').max){state.start=$('start').value;state.dateMode=$('start').dataset.dateMode||'custom';state.days=+$('duration').value;state.camping=$('camping').value;sync();save();applySettings();return}if(!$('start').value||$('start').value<$('start').min||$('start').value>$('start').max){e.preventDefault();$('start').reportValidity();return}state.start=$('start').value;state.dateMode=$('start').dataset.dateMode||'custom';state.days=+$('duration').value;state.camping=$('camping').value;sync();save();applySettings()};
+$('refresh').onclick=async()=>{if(busy)return;armRemote();const center=gridMode&&!surfing()?gridCenter:null;if(await load(true)&&center)openGrid(center,true)};$('about').onclick=()=>$('method').showModal();$('close-method').onclick=()=>$('method').close();$('close-detail').onclick=()=>{detailSampleId=null;$('detail').close()};document.addEventListener('click',e=>{if(!e.target.closest('.origin-wrap'))$('places').hidden=true});
 function dayRows(a,ski){return a.days.length?'<div class="forecast-days">'+a.days.map(d=>`<div class="weather-day"><strong>${fmtDate(d.date)}</strong><span>${temp(d.low)}–${temp(d.high)} · ${Math.round(d.prob)}% precipitation<br>${d.rain.toFixed(1)} mm precipitation · gusts ${Math.round(d.gust)} km/h${ski?'<br>'+d.snow.toFixed(1)+' cm forecast snowfall':''}${d.nightLow!=null?'<br>Overnight minimum '+temp(d.nightLow):''}</span></div>`).join('')+'</div>':'<p class="callout">No complete forecast for this trip. Choose dates within the next two weeks or refresh if the weather service is unavailable.</p>'}
 const feet=m=>Math.round(m*3.28084).toLocaleString()+' ft';
 const sentence=t=>t?t.charAt(0).toUpperCase()+t.slice(1)+(/[.!?]$/.test(t)?'':'.'):'';
@@ -190,7 +229,7 @@ const admin=c=>/^[A-Z]{2,3}$/.test(c)?', '+c:'';
 function nearbyCoast(rows,origin,max=40){const at=[origin.lat,origin.lon];return rows.map(r=>({r,km:distanceKm(at,[r[0],r[1]])})).filter(x=>x.km<=450).sort((a,b)=>a.km-b.km).slice(0,max).map(({r})=>({id:'coast:'+r[0]+','+r[1],name:r[6]?'Coast near '+r[6]+admin(r[8]):'Open coast at '+r[0].toFixed(2)+', '+r[1].toFixed(2),gateway:r[6]||'the shore',road:[r[0],r[1]],point:[r[2],r[3]],seaward:r[4],arc:r[5],country:r[7],activities:['Surfing'],coast:true}))}
 const surfWindow=()=>needsNights()?[6,20]:[DAY_FROM,DAY_TO];
 function surfRating(r){const d=surf[r.id];return rateSurf(d?.marine,d?.wind,r.seaward,dates(state.start,state.days),surfWindow())}
-const surfCovers=()=>Object.values(surf).length>0&&Object.values(surf).every(d=>dates(state.start,state.days).every(day=>d.marine?.hourly?.time?.includes(day+'T12:00')));
+const surfCovered=d=>dates(state.start,state.days).every(day=>d?.marine?.hourly?.time?.includes(day+'T12:00'));
 async function surfForecasts(points){
  const trip=dates(state.start,state.days),base={start_date:trip[0],end_date:trip.at(-1),timezone:'auto'};
  const marineUrl='https://marine-api.open-meteo.com/v1/marine?'+new URLSearchParams({...base,latitude:points.map(p=>p.point[0]).join(','),longitude:points.map(p=>p.point[1]).join(','),hourly:MARINE_HOURLY.join(',')});
@@ -199,7 +238,7 @@ async function surfForecasts(points){
  return Object.fromEntries(points.map((p,i)=>[p.id,{marine:marine[i],wind:wind[i],at:Date.now()}]));
 }
 async function loadCoast(force=false){
- exitGrid(false);clearSurface();basemap?.setCoast([]);const rev=++revision,origin={...state.origin};regions=[];catalog=[];busy=true;weather={};surf={};routes={};driveInfo={};weatherAt=null;render();
+ exitGrid(false);++surface.rev;basemap?.setWeather(null);basemap?.setCoast([]);const rev=++revision,origin={...state.origin};regions=[];catalog=[];busy=true;weather={};surf={};routes={};driveInfo={};weatherAt=null;knownFor(origin);markStale(false);render();
  let rows;try{rows=await loadCoastRows()}catch{if(rev!==revision)return false;busy=false;render();notice('Coastal data could not load. Refresh to retry.',true);return false}
  if(rev!==revision)return false;
  // The map colours every point; the list keeps the nearest point for each town name.
@@ -208,10 +247,10 @@ async function loadCoast(force=false){
  notice('Checking surf along '+all.length+' stretches of open coast near '+origin.name+'…');
  const results=await Promise.allSettled([surfForecasts(all),cachedDrives(origin,local,force)]);remote?.disarm();
  if(rev!==revision)return false;
- busy=false;surf=results[0].status==='fulfilled'?results[0].value:{};driveInfo=results[1].status==='fulfilled'?results[1].value:{};routes=Object.fromEntries(Object.entries(driveInfo).map(([id,d])=>[id,d.seconds]));weatherAt=results[0].status==='fulfilled'?Date.now():null;
+ busy=false;surf=results[0].status==='fulfilled'?results[0].value:{};driveInfo=results[1].status==='fulfilled'?results[1].value:{};routes=Object.fromEntries(Object.entries(driveInfo).map(([id,d])=>[id,d.seconds]));weatherAt=results[0].status==='fulfilled'?Date.now():null;Object.assign(known.surf,surf);Object.assign(known.drives,driveInfo);
  const tz=Object.values(surf)[0]?.marine?.timezone;if(tz){state.origin.timezone=tz;sync();save()}
  const live=results[0].status==='rejected'?(results[0].reason?.code==='desktop_only'||results[0].reason?.code==='search_needed'?'Surf forecasts need the Claude desktop app’s built-in browser; the coastline and drive estimates still show.':liveDataMessage(results[0].reason)||'Surf forecasts unavailable. Refresh to retry; missing data stays unknown.'):null;
- render();fitMap();drawCoast();notice(live||`Updated ${new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${origin.name} · Surf on the best three hours of each day.`,!!live);return true;
+ render();fitMap();drawCoast();notice(live||`Updated ${new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${origin.name} · Surf on the best three hours of each day.`,!!live);afterLoad();return true;
 }
 // Colours the coastline between neighbouring points on the same coastline arc.
 function drawCoast(){
