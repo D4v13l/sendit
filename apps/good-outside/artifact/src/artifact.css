@@ -1,0 +1,34 @@
+/* Artifact additions: tile-free map ground and labels drawn over vector geography. */
+#map{background:#dbe5e3}
+.brand{color:var(--paper)}
+.map-label{position:absolute;left:0;top:0;white-space:nowrap;font-size:11px;line-height:1;color:#39443c;text-shadow:0 0 3px #f3f1e6,0 0 2px #f3f1e6,0 0 1px #f3f1e6}
+.map-label.city,.map-label.peak{transform:translate(-3px,-50%);padding-left:9px}
+.map-label.city::before{content:"";position:absolute;left:0;top:50%;width:5px;height:5px;margin-top:-2.5px;border-radius:50%;background:#4f5a52}
+.map-label.peak{color:#5e5140}
+.map-label.peak::before{content:"";position:absolute;left:-1px;top:50%;margin-top:-4px;border:4px solid transparent;border-top:0;border-bottom:7px solid #7b6a52}
+.map-label.peak b{font-weight:400;color:#7b6a52}
+.map-label.park{transform:translate(-50%,-50%);color:#2f6a3f;font-style:italic;font-weight:600}
+.map-label.range{transform:translate(-50%,-50%);color:#8a7455;font-size:10px;font-style:italic;letter-spacing:.12em;text-transform:uppercase}
+.map-label.left{transform:translate(calc(-100% + 3px),-50%);padding-left:0;padding-right:9px}
+.map-label.city.left::before{left:auto;right:0}
+.map-label.peak.left::before{left:auto;right:-1px}
+.list-note{margin:14px 0 0}
+.map-label.road{transform:translate(-50%,-50%);font-size:10px;font-weight:600;color:#6b5236;background:#fbf7ee;border:1px solid #cfb08c;border-radius:3px;padding:1px 4px;text-shadow:none}
+.weather-key{position:absolute;bottom:62px;left:10px;z-index:500;display:grid;gap:4px;width:min(230px,calc(100% - 64px));padding:8px 10px;background:#f8f5edee;border:1px solid var(--line);border-radius:8px;font-size:11px;color:var(--muted);pointer-events:none}
+.weather-key-bar{height:8px;border-radius:4px;background:linear-gradient(90deg,#aa4035,#e4b12f,#28734c);opacity:.75}
+.weather-key-ends{display:flex;justify-content:space-between}
+.weather-key-ends b{font-weight:600;color:var(--ink)}
+.weather-key-status{font-size:10px;line-height:1.35}
+.weather-key[hidden]{display:none}
+@media(max-width:720px){.weather-key{top:10px;right:10px;left:auto;bottom:auto;width:150px;padding:6px 8px;font-size:10px}.weather-key-status{display:none}}
+.band{border-top:1px solid var(--line);margin-top:14px;padding-top:12px}
+.band h4{display:flex;gap:10px;align-items:center;margin:0 0 4px;font:500 16px/1.3 Georgia,serif}
+.snapshot-slot{margin:0 0 6px}.snapshot-map{height:220px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#dbe5e3}
+.snapshot-map .leaflet-control-attribution{font-size:9px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.snap-pin{width:18px;height:18px;border-radius:50%;background:#173429;border:3px solid #fff;box-shadow:0 0 0 1px #17342999,0 1px 4px #0006}
+.snap-gateway{width:12px;height:12px;transform:rotate(45deg) scale(.8);background:#a2760b;border:2px solid #fff;box-shadow:0 0 0 1px #0005}
+.location-line{margin:0 0 14px}.location-links a{margin-left:6px;white-space:nowrap}
+.snap-key{display:inline-flex;align-items:center;gap:6px}.snap-key i{display:inline-block;flex:none}.snap-key .snap-pin{width:12px;height:12px;border-width:2px}.snap-key .snap-gateway{margin-left:6px}
+.web-only{display:none}:root[data-host=web] .web-only{display:revert}:root[data-host=web] .claude-only{display:none}
+#refresh.needs-refresh{color:#fff;background:var(--yellow);border-color:var(--yellow);border-radius:50%;box-shadow:0 0 0 4px #a2760b33}
+@media (prefers-reduced-motion:no-preference){#refresh.needs-refresh{animation:refresh-pulse 1.8s ease-in-out 3}}@keyframes refresh-pulse{50%{box-shadow:0 0 0 8px #a2760b22}}

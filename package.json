@@ -19,6 +19,8 @@
     "data:download": "node scripts/download-data.mjs",
     "data:setup": "node scripts/setup-data.mjs",
     "data:upload": "node scripts/upload-snapshots.mjs",
-    "test:snapshots": "node --test tests/snapshots.test.mjs"
+    "test:snapshots": "node --test tests/snapshots.test.mjs",
+    "build:artifact": "npm --prefix apps/good-outside/artifact run build",
+    "test:artifact": "npm --prefix apps/good-outside/artifact test"
   }
 }

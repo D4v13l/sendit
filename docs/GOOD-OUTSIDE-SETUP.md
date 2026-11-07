@@ -9,7 +9,7 @@ npm run install:ci
 npm run build
 ```
 
-The hosting manifest declares a D1 binding named `DB`; its original project ID is removed. Create your own Sites/Cloudflare project and D1 database. Retain the DB binding. The original owner’s account, tokens and schedules are not part of this repository.
+The hosting manifest declares a D1 binding named `DB`; its original project ID is removed. Create your own Sites/Cloudflare project and D1 database; for a direct Cloudflare deployment see [DEPLOY-OWN-ACCOUNT.md](DEPLOY-OWN-ACCOUNT.md). Retain the DB binding. The original owner’s account, tokens and schedules are not part of this repository.
 
 For local D1 after building:
 
