@@ -379,6 +379,7 @@ test('an area is placed in words from the start and from nearby towns',()=>{
  const line=locationLine(at,{lat:47.6062,lon:-122.3321,name:'Seattle, WA, US'},near);
  assert.match(line[0],/^7\d km \(4\d mi\) east-southeast of Seattle, WA, US \(straight line\)$/);
  assert.equal(line[2],'29 km (18 mi) east-southeast of North Bend, WA');
+ assert.deepEqual(locationLine([47.657,-122.305],{lat:47.6062,lon:-122.3321,name:'Seattle, WA, US'},{town:{name:'Seattle, WA',km:6,direction:'north-northeast'}}),['6.0 km (3.7 mi) north-northeast of Seattle, WA, US (straight line)'],'the starting town is not repeated');
  // A small place about as close as the town is left out.
  assert.equal(nearbyPlaces(rows.filter(r=>r[0]!=='Tiny Place'),at).nearest,null);
  // A small town gets a larger neighbour within 40 km beside it; a 20,000+ town does not.
@@ -415,4 +416,43 @@ test('the web build loads scripts only from itself and talks only to the forecas
  assert.match(csp,/default-src 'none'/);assert.match(csp,/script-src 'self';/);assert.match(csp,/frame-ancestors 'none'/);
  assert.equal(csp.match(/connect-src ([^;]*)/)[1],["'self'",...SERVICES].join(' '));
  assert.match(HEADERS,/X-Robots-Tag: noindex/);assert.match(HEADERS,/Referrer-Policy: no-referrer/);
+});
+
+import {rainBefore,wetRock,freezingRange,shiftDate,PAST_DAYS} from '../src/conditions.mjs';
+test('climbing days are marked down after rain in the 48 hours before the first morning',()=>{
+ assert.equal(shiftDate('2026-03-01',-2),'2026-02-27');assert.equal(PAST_DAYS,2);
+ // Hourly precipitation stamped at the end of each hour, from two days before through the trip day.
+ const time=[],precipitation=[];for(const day of ['2026-11-12','2026-11-13','2026-11-14'])for(let h=0;h<24;h++){time.push(`${day}T${String(h).padStart(2,'0')}:00`);precipitation.push(0)}
+ const f={hourly:{time,precipitation},daily:{time:['2026-11-12','2026-11-13','2026-11-14'],precipitation_sum:[9,3,0]}};
+ const set=(stamp,v)=>{precipitation[time.indexOf(stamp)]=v};
+ set('2026-11-12T08:00',50);  // ends at 08:00 two days before: just outside the 48 hours
+ set('2026-11-12T09:00',2);set('2026-11-13T20:00',4);set('2026-11-14T08:00',1);set('2026-11-14T09:00',30);  // 09:00 on the day is after the start
+ assert.deepEqual(rainBefore(f,'2026-11-14',8),{mm:7,basis:'hourly'});
+ // Without the hours, the two days' daily totals stand in; without either, unknown.
+ assert.deepEqual(rainBefore({daily:f.daily},'2026-11-14'),{mm:12,basis:'daily'});
+ assert.equal(rainBefore({daily:{time:['2026-11-14'],precipitation_sum:[0]}},'2026-11-14'),null);
+ const excellent={level:'excellent',label:'Excellent',reason:'Relatively dry, mild weather with lighter gusts.',days:[]};
+ assert.equal(wetRock(excellent,{mm:0.4,basis:'hourly'}).level,'excellent');
+ const damp=wetRock(excellent,{mm:3,basis:'hourly'});assert.equal(damp.level,'excellent');assert.match(damp.reason,/^dry on the day; 3\.0 mm of rain in the 48 hours before the first morning, so shaded/);
+ const wet=wetRock(excellent,{mm:7,basis:'hourly'});assert.equal(wet.level,'passable');assert.match(wet.reason,/^dry on the day, but 7\.0 mm .*may still be wet$/);
+ assert.equal(wetRock(excellent,{mm:25,basis:'daily'}).level,'poor');assert.match(wetRock(excellent,{mm:25,basis:'daily'}).reason,/in the two days before: expect wet rock/);
+ const passable={level:'passable',label:'Passable',reason:'breezy conditions',days:[]};
+ assert.equal(wetRock(passable,{mm:7,basis:'hourly'}).level,'passable');assert.match(wetRock(passable,{mm:7,basis:'hourly'}).reason,/^breezy conditions; 7\.0 mm/);
+ assert.equal(wetRock(excellent,null),excellent,'unknown rain leaves the rating alone');
+ assert.equal(wetRock({level:'unknown'},{mm:30}).level,'unknown');
+});
+
+test('freezing level is summarised over the rated hours',()=>{
+ const time=[],freezing_level_height=[];for(let h=0;h<24;h++){time.push(`2026-11-14T${String(h).padStart(2,'0')}:00`);freezing_level_height.push(1000+h*50)}
+ const f={hourly:{time,freezing_level_height}};
+ assert.deepEqual(freezingRange(f,'2026-11-14',8,18),{low:1400,high:1900});
+ assert.deepEqual(freezingRange(f,'2026-11-14'),{low:1000,high:2150});
+ assert.equal(freezingRange({hourly:{time}},'2026-11-14'),null);
+});
+
+test('the self-hosted map grid is twice as dense',()=>{
+ const o={lat:47.6,lon:-122.3},coarse=gradientGrid(o),fine=gradientGrid(o,{n:16});
+ assert.equal(coarse.points.length,64);assert.equal(fine.points.length,256);
+ const km=g=>(g.bounds.north-g.bounds.south)*111/(g.n-1);
+ assert.ok(Math.abs(km(coarse)-86)<1&&Math.abs(km(fine)-40)<1,km(coarse)+' '+km(fine));
 });

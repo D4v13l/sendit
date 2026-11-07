@@ -45,6 +45,8 @@ export function locationLine(at,origin,places){
  if(origin){const km=distanceKm([origin.lat,origin.lon],at);parts.push(km<0.5?'At your starting point':dist(km)+' '+direction(bearing([origin.lat,origin.lon],at))+' of '+origin.name+' (straight line)')}
  const {nearest,town,city}=places||{},from=p=>p.direction?dist(p.km)+' '+p.direction+' of '+p.name:'In '+p.name;
  // At most two places: a much closer small place and a city say more than a town between them.
- for(const p of [nearest,nearest&&city?null:town,city])if(p)parts.push(from(p));
+ // A place that is the starting point itself adds nothing.
+ const isOrigin=p=>origin&&String(origin.name).startsWith(p.name);
+ for(const p of [nearest,nearest&&city?null:town,city])if(p&&!isOrigin(p))parts.push(from(p));
  return parts;
 }
