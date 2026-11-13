@@ -12,6 +12,7 @@ import {coastalRuns,sampleRun,exposure,travel,km} from './src/coastline.mjs';
 import {packTiles,PROVIDERS} from './src/catalog-tiles.mjs';
 import {regions as curatedRegions,distanceKm} from '../public/catalog.mjs';
 import {hillshade,decodeTerrarium} from './src/hillshade.mjs';
+import {readableAdmin} from './src/places.mjs';
 const require=createRequire(import.meta.url);
 const here=new URL('./',import.meta.url),pub=new URL('../public/',import.meta.url),dist=new URL('dist/',here);
 const shared=['engine.mjs','trips.mjs','services.mjs','catalog.mjs','world-catalog.mjs','expanded-catalog.mjs'];
@@ -30,9 +31,10 @@ await copyFile(new URL('countries-50m.json',pkg('world-atlas')),new URL('data/co
 await copyFile(new URL('countries-10m.json',pkg('world-atlas')),new URL('data/countries-10m.json',dist));
 await copyFile(new URL('states-10m.json',pkg('us-atlas')),new URL('data/states-10m.json',dist));
 
-// GeoNames rows: [name, country, adminCode, population, lat, lon], most populous first.
+// GeoNames rows: [name, country, adminCode, population, lat, lon], most populous first. Canadian
+// province numbers become their abbreviations (02 → BC), so labels and searches like "Squamish BC" work.
 const rows=require('all-the-cities').filter(c=>c.population>=1000&&c.name)
- .map(c=>[c.name,c.country,c.adminCode,c.population,+c.loc.coordinates[1].toFixed(3),+c.loc.coordinates[0].toFixed(3)])
+ .map(c=>[c.name,c.country,readableAdmin(c.country,c.adminCode),c.population,+c.loc.coordinates[1].toFixed(3),+c.loc.coordinates[0].toFixed(3)])
  .sort((a,b)=>b[3]-a[3]);
 await writeFile(new URL('data/cities-search.json',dist),JSON.stringify(rows));
 await writeFile(new URL('data/cities-labels.json',dist),JSON.stringify(rows.filter(r=>r[3]>=100000)));

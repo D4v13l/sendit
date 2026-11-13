@@ -456,3 +456,14 @@ test('the self-hosted map grid is twice as dense',()=>{
  const km=g=>(g.bounds.north-g.bounds.south)*111/(g.n-1);
  assert.ok(Math.abs(km(coarse)-86)<1&&Math.abs(km(fine)-40)<1,km(coarse)+' '+km(fine));
 });
+
+import {PROVINCES,readableAdmin} from '../src/places.mjs';
+test('Canadian places read and search by province abbreviation',()=>{
+ assert.equal(readableAdmin('CA','02'),'BC');assert.equal(readableAdmin('CA','01'),'AB');assert.equal(readableAdmin('US','WA'),'WA');assert.equal(readableAdmin('AU','02'),'02');
+ assert.equal(Object.keys(PROVINCES).length,13);
+ const rows=[['Vancouver','CA',readableAdmin('CA','02'),600000,49.25,-123.119],['Vancouver','US','WA',190000,45.639,-122.661],['Squamish','CA',readableAdmin('CA','02'),17587,49.699,-123.156]];
+ const entries=rows.map(r=>({row:r,key:r[0].toLowerCase()}));
+ assert.deepEqual(searchPlaces(entries,'Squamish, BC').map(placeLabel),['Squamish, BC, CA']);
+ assert.deepEqual(searchPlaces(entries,'vancouver bc').map(placeLabel),['Vancouver, BC, CA']);
+ assert.deepEqual(searchPlaces(entries,'vancouver').map(placeLabel),['Vancouver, BC, CA','Vancouver, WA, US']);
+});
