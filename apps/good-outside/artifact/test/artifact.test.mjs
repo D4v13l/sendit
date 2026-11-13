@@ -487,3 +487,37 @@ test('whole days are rebuilt from hourly values when the answer has no daily blo
  assert.equal(f.window,undefined);
  const withDaily={daily:{time:['x']},hourly:{time}};assert.equal(fullDays(withDaily),withDaily);
 });
+
+import {snowBefore,skiConditions,pastDaysFor} from '../src/conditions.mjs';
+test('ski ratings read the snow surface left by the three days before',()=>{
+ assert.equal(pastDaysFor('Skiing'),3);assert.equal(pastDaysFor('Backcountry skiing'),3);assert.equal(pastDaysFor('Climbing'),2);assert.equal(pastDaysFor('Hiking'),0);
+ const days=['2026-12-07','2026-12-08','2026-12-09','2026-12-10','2026-12-11','2026-12-12','2026-12-13','2026-12-14','2026-12-15'];
+ const make=(fn,depth=0.8,dailyTemps=[[-2,-8],[-1,-7],[-3,-9]])=>{const time=[],snowfall=[],precipitation=[],temperature_2m=[],snow_depth=[];
+  for(const d of days)for(let h=0;h<24;h++){const t=`${d}T${String(h).padStart(2,'0')}:00`,[s,p,tc]=fn(d,h);time.push(t);snowfall.push(s);precipitation.push(p);temperature_2m.push(tc);snow_depth.push(depth)}
+  const hi=days.map((d,i)=>i>=5&&i<8?dailyTemps[i-5][0]:-2),lo=days.map((d,i)=>i>=5&&i<8?dailyTemps[i-5][1]:-8);
+  return {hourly:{time,snowfall,precipitation,temperature_2m,snow_depth},daily:{time:days,snowfall_sum:days.map(()=>2),precipitation_sum:days.map(()=>3),temperature_2m_max:hi,temperature_2m_min:lo}}};
+ // 1 cm an hour from 20:00 to 23:00 the night before: 4 cm of new snow, cold.
+ const s=snowBefore(make((d,h)=>[d==='2026-12-14'&&h>=20?1:0,d==='2026-12-14'&&h>=20?1.4:0,-5]),'2026-12-15');
+ assert.equal(s.basis,'hourly');assert.equal(s.newCm,4);assert.equal(s.rainMm,0);assert.equal(s.depthCm,80);assert.equal(s.weekCm,14);assert.equal(s.meltFreeze,false);assert.equal(s.noFreeze,false);
+ const excellent={level:'excellent',label:'Excellent',reason:'Relatively dry, mild weather with lighter gusts.',days:[]};
+ const powder=skiConditions(excellent,{...s,newCm:18});assert.equal(powder.level,'excellent');assert.match(powder.reason,/^18 cm of new snow in the 72 hours before$/);
+ // Rain on snow without fresh snow caps at Passable.
+ const rain=snowBefore(make((d,h)=>[0,d==='2026-12-13'?0.5:0,3]),'2026-12-15');
+ assert.equal(rain.rainMm,12);const rained=skiConditions(excellent,rain);assert.equal(rained.level,'passable');assert.match(rained.reason,/12 mm of rain in the 72 hours before: expect crust or wet snow/);
+ // Melt–freeze: a day above +3 °C and below −2 °C, no new snow.
+ const mf=snowBefore(make(()=>[0,0,-1],0.8,[[5,-4],[1,-6],[0,-5]]),'2026-12-15');assert.equal(mf.meltFreeze,true);
+ assert.match(skiConditions(excellent,mf).reason,/melt–freeze/);assert.equal(skiConditions(excellent,mf).level,'passable');
+ // No overnight freeze at all.
+ const warm=snowBefore(make(()=>[0,0,4],0.8,[[6,2],[7,1],[5,1]]),'2026-12-15');assert.equal(warm.noFreeze,true);assert.equal(skiConditions(excellent,warm).level,'passable');
+ // Thin model snow depth caps at Passable but never sinks a rating to Poor on its own.
+ const thin=snowBefore(make(()=>[0,0,-5],0.03),'2026-12-15');assert.equal(thin.depthCm,3);
+ const capped=skiConditions(excellent,thin);assert.equal(capped.level,'passable');assert.match(capped.reason,/little snow on the ground in the weather model \(3\.0 cm\)/);
+ assert.equal(skiConditions({level:'poor',label:'Poor',reason:'strong gusts',days:[]},thin).level,'poor');
+ // Fresh snow covers a crust: rain earlier plus 10 cm new leaves Excellent.
+ assert.equal(skiConditions(excellent,{...rain,newCm:10}).level,'excellent');
+ // Without the hours, daily totals stand in; rain is precipitation beyond the snow's water.
+ const daily=snowBefore({daily:{time:days,snowfall_sum:days.map(()=>7),precipitation_sum:days.map(()=>15),temperature_2m_max:days.map(()=>0),temperature_2m_min:days.map(()=>-5)}},'2026-12-15');
+ assert.equal(daily.basis,'daily');assert.equal(daily.newCm,21);assert.equal(Math.round(daily.rainMm),15);
+ assert.equal(snowBefore({daily:{time:['2026-12-15']}},'2026-12-15'),null);
+ assert.equal(skiConditions(excellent,null),excellent);
+});
