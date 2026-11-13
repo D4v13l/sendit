@@ -30,6 +30,8 @@
 .location-line{margin:0 0 14px}.location-links a{margin-left:6px;white-space:nowrap}
 .snap-key{display:inline-flex;align-items:center;gap:6px}.snap-key i{display:inline-block;flex:none}.snap-key .snap-pin{width:12px;height:12px;border-width:2px}.snap-key .snap-gateway{margin-left:6px}
 .web-only{display:none}:root[data-host=web] .web-only{display:revert}:root[data-host=web] .claude-only{display:none}
-#refresh.needs-refresh{color:#fff;background:var(--yellow);border-color:var(--yellow);border-radius:50%;box-shadow:0 0 0 4px #a2760b33}
+#refresh.refresh-button{display:flex;align-items:center;justify-content:center;gap:8px;min-width:104px;padding:12px 18px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--ink);font:inherit;font-size:15px;cursor:pointer}
+#refresh.refresh-button span{font-size:21px;line-height:1}
+#refresh.needs-refresh{color:#fff;background:var(--yellow);border-color:var(--yellow);box-shadow:0 0 0 4px #a2760b33}
 @media (prefers-reduced-motion:no-preference){#refresh.needs-refresh{animation:refresh-pulse 1.8s ease-in-out 3}}@keyframes refresh-pulse{50%{box-shadow:0 0 0 8px #a2760b22}}
 .wet-note{display:inline-block;margin-left:6px;font-size:12px;color:#2f5f7a;background:#e3eef3;border-radius:999px;padding:1px 8px;vertical-align:middle}

@@ -21,9 +21,18 @@ const fetchedAt=(data,at)=>{for(const f of Array.isArray(data)?data:[data])if(f&
 async function directFetch(url,timeout,purpose){
  let store=null;try{store=await caches.open(CACHE)}catch{}
  if(store){try{const hit=await store.match(url),at=Number(hit?.headers.get('x-fetched-at'));if(hit&&Date.now()-at<keepFor(url,purpose))return fetchedAt(await hit.json(),at)}catch{}}
- // The map's 256-point, two-week answer runs to several megabytes, so allow slow mobile connections time.
- const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),Math.max(45000,timeout||0));let response,data;
- try{response=await fetch(url,{signal:controller.signal});data=await response.json().catch(()=>null)}finally{clearTimeout(timer)}
+ // A slow or failed connection, or a server error, gets one more try: a forecast server that is
+ // still loading a region's model data (seen near Victoria, BC) can time out once, then answer.
+ const host=new URL(url).hostname;let response,data;
+ for(let attempt=0;;attempt++){
+  // The map's two-week answers run to megabytes, so allow slow mobile connections time.
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),Math.max(45000,timeout||0));
+  try{response=await fetch(url,{signal:controller.signal});data=await response.json().catch(()=>null)}
+  catch(e){if(attempt<1){await new Promise(r=>setTimeout(r,1500));continue}e.host=host;throw e}
+  finally{clearTimeout(timer)}
+  if(response.status>=500&&attempt<1){await new Promise(r=>setTimeout(r,1500));continue}
+  break;
+ }
  // Open-Meteo explains refusals in `reason`, e.g. "Minutely API request limit exceeded. Please try again in one minute."
  if(!response.ok||data?.error){const e=Error(data?.reason||'Service returned '+response.status);e.code=response.status===429?'rate_limited':'service_error';throw e}
  const at=Date.now();
@@ -91,7 +100,7 @@ const mapGrid=origin=>gradientGrid(origin,{n:inClaude?8:16});
 function liveDataMessage(error){const code=error?.code;
  // A self-hosted copy talks to the services directly; their failures are plain HTTP or network errors.
  if(!inClaude&&code==='rate_limited')return 'Open-Meteo’s free limit for your connection was reached: '+error.message+' Pages already loaded still work.';
- if(!inClaude&&['TypeError','AbortError'].includes(error?.name))return 'Could not reach the forecast or routing service. Check your connection, then tap ↻.';
+ if(!inClaude&&['TypeError','AbortError'].includes(error?.name))return `Could not reach ${error.host||'the forecast or routing service'} (${error.name==='AbortError'?'no answer within 45 seconds':error.message||error.name}). Check your connection, then tap ↻.`;
  if(['stale','too_large','unreadable'].includes(code))return error.message+' Tap ↻ to try again.';
  if(['server_not_connected','capability_disabled','not_granted','capability_removed'].includes(code))return 'Live forecasts load only for this page’s owner, signed in to Claude. Everything else works here.';
  if(code==='search_needed')return 'Forecasts are fetched only when you search a starting location. Search '+(state.origin?.name||'one')+' to load them.';
@@ -123,7 +132,9 @@ function render(){
  $('results').innerHTML=!state.origin?'<div class="empty"><strong>Start from where you are.</strong>Enter a town or city. We’ll compare weather across your full trip.</div>':busy&&!visible.length?'<div class="empty"><strong>Checking the road and the sky…</strong>Loading live regional forecasts and driving estimates.</div>':visible.length?visible.map((r,i)=>areaHTML(r,i+1)).join(''):`<div class="empty"><strong>No areas to show.</strong>${outside===all.length&&all.length?'The nearby catalog areas are over four modeled driving hours away. Try a different starting point.':!regions.length?'No source records near this origin. Coverage varies by provider; absence does not mean no outdoor places exist here. Zoom in for point forecasts.':!all.length?'No nearby catalog entries match this activity and camping choice. Try Hiking or another overnight option; activity coverage varies by region.':'Try a different activity.'}</div>`;
  updateMap(visible);renderPicks();if(gridMode)renderGrid();for(const el of document.querySelectorAll('[data-region]'))el.onclick=()=>showDetail(el.dataset.region);
 }
-function initMap(){if(!window.L){mapError=true;$('map').innerHTML='<p style="padding:25px">Map unavailable. All regions and source links are still accessible in the list.</p>';return}map=L.map('map',{scrollWheelZoom:false}).setView([25,-20],2);initBasemap();$('fit').onclick=()=>{exitGrid(false);render();fitMap()};gridGroup=L.layerGroup().addTo(map);map.on('moveend',()=>{clearTimeout(gridTimer);if(map.getZoom()<10){if(gridMode){exitGrid(false);render()}else $('grid-status').hidden=true;return}const center=map.getCenter(),point=[center.lat,center.lng];if(gridMode&&gridCenter&&distanceKm(point,gridCenter)<1)return;gridTimer=setTimeout(()=>loadGrid(point),Math.max(400,5000-(Date.now()-lastGridAt)))});}
+function initMap(){if(!window.L){mapError=true;$('map').innerHTML='<p style="padding:25px">Map unavailable. All regions and source links are still accessible in the list.</p>';return}map=L.map('map',{scrollWheelZoom:false}).setView([25,-20],2);initBasemap();$('fit').onclick=()=>{exitGrid(false);render();fitMap()};gridGroup=L.layerGroup().addTo(map);map.on('moveend',()=>{clearTimeout(gridTimer);if(map.getZoom()<10){pendingGrid=null;if(gridMode){exitGrid(false);render()}else $('grid-status').hidden=true;markStale(viewNeedsLoad());return}const center=map.getCenter(),point=[center.lat,center.lng];if(gridMode&&gridCenter&&distanceKm(point,gridCenter)<1)return;
+ // Samples around the map's centre load on ↻ (or "Explore a 10-mile radius"), never just from moving the map.
+ if(!surfing()&&!remoteMode()&&state.origin){pendingGrid=point;$('grid-status').hidden=false;$('grid-status').textContent='Tap ↻ Load to check nine weather samples within 10 miles of the map’s centre.'}markStale(viewNeedsLoad())});}
 function updateMap(visible){if(!map)return;markers.forEach(m=>m.remove());markers=[];const show=[];show.forEach((r,i)=>{const m=L.marker(r.point,{icon:L.divIcon({html:`<div class="map-marker ${r.assessment.level}">${state.origin?i+1:'·'}</div>`,className:'custom-icon',iconSize:[30,30],iconAnchor:[15,15]}),title:r.name+' — '+r.assessment.label,keyboard:true}).addTo(map).bindTooltip(esc(r.name)+' · '+r.assessment.label);m.on('click',()=>showDetail(r.id));markers.push(m)});if(originMarker)originMarker.remove();if(state.origin)originMarker=L.marker([state.origin.lat,state.origin.lon],{icon:L.divIcon({html:'<div class="origin-marker"></div>',className:'custom-icon',iconSize:[14,14]}),title:'Starting location'}).addTo(map).bindTooltip(esc(state.origin.name));map.fire('basemap:refresh');}
 function fitMap(){if(!map||gridMode)return;if(state.origin&&surfing()&&catalog.length){map.fitBounds([...catalog.map(r=>r.road),[state.origin.lat,state.origin.lon]],{padding:[20,20],maxZoom:8});return}if(state.origin){const b=mapGrid(state.origin).bounds;map.fitBounds([[b.south,b.west],[b.north,b.east]],{padding:[10,10],maxZoom:8});return}const visible=listed();if(state.origin&&!visible.length){map.setView([state.origin.lat,state.origin.lon],8);return}if(!state.origin){map.setView([25,-20],2);return}const coords=visible.map(r=>r.point);if(state.origin)coords.push([state.origin.lat,state.origin.lon]);map.fitBounds(coords,{padding:[35,35],maxZoom:9});}
 // ↻ (force) refetches everything in Claude. A self-hosted copy refetches the areas but reuses the map's
@@ -136,7 +147,7 @@ async function load(force=false,retry=false){
  if(surfing())return loadCoast(force,retry);
  const startBefore=state.start;
  basemap?.setCoast([]);
- exitGrid(false);if(!surface.grid||surface.grid.points[0].id!==mapGrid(state.origin).points[0].id)clearSurface();const rev=++revision,origin={...state.origin};regions=[];catalog=[];busy=true;weather={};routes={};weatherAt=null;knownFor(origin);markStale(false);render();fitMap();
+ exitGrid(false);if(!surface.grid||surface.grid.points[0].id!==mapGrid(state.origin).points[0].id)clearSurface();const rev=++revision,origin={...state.origin};regions=[];catalog=[];busy=true;weather={};routes={};weatherAt=null;knownFor(origin);areasStale=false;markStale(viewNeedsLoad());render();fitMap();
  await ensureTiles(origin);if(rev!==revision)return false;
  const local=nearby(origin,state.activity);catalog=local;regions=local;
  if(!local.length){busy=false;render();notice('No '+state.activity.toLowerCase()+' records near '+origin.name+'. Coverage varies by source; zoom in for point forecasts.',true);return true}
@@ -154,13 +165,20 @@ async function load(force=false,retry=false){
 // activity, dates or camping re-rates what is already loaded for this starting point; whatever that
 // does not cover stays unknown, and ↻ is highlighted until it is loaded.
 function knownFor(origin){const key=origin.lat.toFixed(4)+','+origin.lon.toFixed(4);if(known.origin!==key)known={origin:key,weather:{},drives:{},surf:{}}}
+// Whether ↻ has something to load for what is on screen: zoomed in, the samples around the map's centre;
+// otherwise the areas and weather map.
+let areasStale=false,pendingGrid=null;
+function viewNeedsLoad(){if(!state.origin)return false;if(map&&map.getZoom()>=10&&!surfing())return !!pendingGrid;return areasStale}
 function markStale(on){const b=$('refresh');b.classList.toggle('needs-refresh',on);b.title=on?'Load forecasts and drive times for these settings':'Refresh weather and routes';b.setAttribute('aria-label',b.title)}
 function afterLoad(){if(settingsChanged){settingsChanged=false;applySettings()}}
-async function applySettings(){
+// `why` is 'settings', 'search' (a new or saved starting point) or 'open' (the page opening).
+async function applySettings(why='settings'){
  if(!state.origin){render();return}
  // A load in progress re-applies the settings when it finishes.
  if(busy){settingsChanged=true;return}
- const origin={...state.origin},coast=surfing(),wasCoast=catalog.some(r=>r.coast),rev=++revision;knownFor(origin);
+ const origin={...state.origin},coast=surfing(),wasCoast=catalog.some(r=>r.coast),rev=++revision,moved=known.origin!==null&&known.origin!==origin.lat.toFixed(4)+','+origin.lon.toFixed(4);knownFor(origin);
+ // A new starting point leaves nothing of the old one on the map.
+ if(why!=='settings'){exitGrid(false);pendingGrid=null;if(surface.grid&&surface.grid.points[0].id!==mapGrid(origin).points[0].id)clearSurface()}
  if(coast){
   let rows;try{rows=await loadCoastRows()}catch{notice('Coastal data could not load. Tap ↻ to retry.',true);return}
   // A search or ↻ that started meanwhile wins.
@@ -174,7 +192,7 @@ async function applySettings(){
   weather=Object.fromEntries(regions.filter(r=>known.weather[r.id]&&covers(known.weather[r.id])).map(r=>[r.id,known.weather[r.id]]));
  }
  driveInfo=Object.fromEntries(regions.filter(r=>known.drives[r.id]).map(r=>[r.id,known.drives[r.id]]));routes=Object.fromEntries(Object.entries(driveInfo).map(([id,d])=>[id,d.seconds]));
- render();if(coast!==wasCoast)fitMap();
+ render();if(coast!==wasCoast||moved||why!=='settings')fitMap();
  const rated=coast?Object.keys(surf).length:regions.filter(r=>weather[r.id]).length,mapped=coast?catalog.filter(r=>surf[r.id]).length:0;
  let stale=coast?mapped<catalog.length:rated<regions.length;
  // Viewers who cannot load live data at all get no prompt to.
@@ -184,11 +202,12 @@ async function applySettings(){
  else{basemap?.setWeather(null);$('weather-key').hidden=remoteMode()||!canFetch;if(!$('weather-key').hidden){stale=true;$('weather-key-status').textContent='Tap ↻ to colour the map for these settings.'}}
  if(gridMode&&!coast&&!Object.values(gridWeather).every(covers)){stale=true;$('grid-status').textContent='Tap ↻ to update these samples for these settings.'}else if(gridMode)renderGrid();
  if(regions.some(r=>!driveInfo[r.id]))stale=true;
- markStale(stale&&canFetch&&regions.length>0);
+ areasStale=stale&&canFetch&&regions.length>0;markStale(viewNeedsLoad());
+ if(why!=='settings'&&canFetch&&regions.length&&!rated){notice('Tap ↻ Load to check weather and drive times near '+origin.name+'.');return}
  notice(!canFetch?'Re-rated for these settings. Live forecasts and drive times are not available in this view.':!regions.length?'No '+state.activity.toLowerCase()+' areas near '+origin.name+'.':stale?(rated?`Settings changed: ${rated} of ${regions.length} areas re-rated from loaded forecasts. Tap ↻ to load the rest.`:'Settings changed. Tap ↻ to load forecasts and drive times for them.'):`Re-rated for these settings · ${origin.name} · ${coast?'Surf on the best three hours of each day.':ratingNote()}`);
 }
-async function chooseOrigin(origin){++searchRevision;state.origin=origin;sync();save();$('places').hidden=true;await mcpReady;await ensureTiles(origin);remote?.arm(origin,searchPoints(origin));await load();}
-// Without the built-in browser, forecasts are fetched only on the viewer's own request: a search, an activity change or ↻.
+async function chooseOrigin(origin){++searchRevision;state.origin=origin;sync();save();$('places').hidden=true;await mcpReady;await applySettings('search')}
+// Without the built-in browser, forecasts are fetched only on the viewer's own request: ↻.
 function armRemote(){if(remote&&state.origin)remote.arm(state.origin,searchPoints(state.origin))}
 $('controls').onsubmit=async e=>{e.preventDefault();const query=$('origin').value.trim();if(query.length<2){notice('Enter at least two characters for a town or city.',true);return}const rev=++searchRevision;notice('Finding matching places…');$('places').hidden=true;
  let results=[];try{results=searchPlaces(await loadPlaces(),query).map(r=>({label:placeLabel(r),origin:{lat:r[4],lon:r[5],name:placeLabel(r),country:r[1]}}))}catch{}
@@ -200,7 +219,7 @@ $('controls').onsubmit=async e=>{e.preventDefault();const query=$('origin').valu
  if(!results.length){notice('No location found. Try a nearby town.',true);return}
  $('places').innerHTML=results.map((p,i)=>`<button type="button" data-place="${i}">${esc(p.label)}</button>`).join('');$('places').hidden=false;notice('Choose the matching starting location.');$('places').querySelectorAll('button').forEach(b=>b.onclick=()=>chooseOrigin(results[+b.dataset.place].origin))};
 $('activity').onchange=()=>{state.activity=$('activity').value;save();applySettings()};$('trip').onclick=()=>{sync();$('settings').showModal()};$('settings-form').onsubmit=e=>{if(e.submitter?.value!=='apply')return;if(surfing()&&$('start').value>=$('start').min&&$('start').value<=$('start').max){state.start=$('start').value;state.dateMode=$('start').dataset.dateMode||'custom';state.days=+$('duration').value;state.camping=$('camping').value;sync();save();applySettings();return}if(!$('start').value||$('start').value<$('start').min||$('start').value>$('start').max){e.preventDefault();$('start').reportValidity();return}state.start=$('start').value;state.dateMode=$('start').dataset.dateMode||'custom';state.days=+$('duration').value;state.camping=$('camping').value;sync();save();applySettings()};
-$('refresh').onclick=async()=>{if(busy)return;armRemote();const center=gridMode&&!surfing()?gridCenter:null;if(await load(true)&&center)openGrid(center,true)};$('about').onclick=()=>$('method').showModal();$('close-method').onclick=()=>$('method').close();$('close-detail').onclick=()=>{detailSampleId=null;$('detail').close()};document.addEventListener('click',e=>{if(!e.target.closest('.origin-wrap'))$('places').hidden=true});
+$('refresh').onclick=async()=>{if(busy)return;if(map&&map.getZoom()>=10&&!surfing()&&!remoteMode()&&state.origin){const c=map.getCenter();return loadGrid([c.lat,c.lng],true)}armRemote();await load(true)};$('about').onclick=()=>$('method').showModal();$('close-method').onclick=()=>$('method').close();$('close-detail').onclick=()=>{detailSampleId=null;$('detail').close()};document.addEventListener('click',e=>{if(!e.target.closest('.origin-wrap'))$('places').hidden=true});
 // The hours a day is rated on: 8 am–6 pm for day trips, the whole day when camping.
 const ratedHours=()=>needsNights()?[0,23]:[DAY_FROM,DAY_TO];
 const freezingLine=(f,date)=>{const z=freezingRange(f,date,...ratedHours());return z?'<br>Freezing level '+(Math.abs(z.high-z.low)<50?feet(z.low):feet(z.low)+'–'+feet(z.high)):''};
@@ -264,7 +283,7 @@ function exitGrid(reset=true){++gridRevision;clearTimeout(gridTimer);gridMode=fa
 function openGrid(point,force=false){if(!map)return;map.setView(point,10,{animate:false});loadGrid(point,force)}
 async function loadGrid(point,force=false){
  if(!map||map.getZoom()<10)return;if(remoteMode()){$('grid-status').hidden=false;$('grid-status').textContent='Zoomed-in weather samples need the Claude desktop app.';return}if(surfing()){$('grid-status').hidden=false;$('grid-status').textContent='10-mile samples rate land weather; surf ratings follow the coastline.';return}if(!bridgeOk&&!force){$('grid-status').hidden=false;$('grid-status').textContent='10-mile weather samples load after live weather has worked once. Tap ↻ first.';return}const center=point.map(n=>+n.toFixed(3)),key=center.join(',');if(key===gridKey&&!force)return;
- const rev=++gridRevision;gridKey=key;gridMode=true;gridCenter=center;gridPoints=weatherGrid(center);gridWeather={};lastGridAt=Date.now();
+ const rev=++gridRevision;gridKey=key;gridMode=true;gridCenter=center;gridPoints=weatherGrid(center);gridWeather={};lastGridAt=Date.now();pendingGrid=null;markStale(viewNeedsLoad());
  $('grid-status').hidden=false;$('regions-view').hidden=false;$('grid-status').textContent='Checking nine weather samples in a 10-mile radius…';if(gridCircle)gridCircle.remove();gridCircle=L.circle(center,{radius:16093.44,color:'#173429',weight:1,fillOpacity:0.04,interactive:false}).addTo(map);render();
  try{const data=await client.weather(gridPoints,force);if(rev!==gridRevision)return;gridWeather=data;renderGrid()}catch(error){if(rev!==gridRevision)return;$('grid-status').textContent=liveDataMessage(error)||'10-mile detail unavailable. Zoom out and in to retry. Samples remain unranked.';renderGrid(false)}
 }
@@ -281,7 +300,7 @@ function showSample(p){detailSampleId=p.id;detailRegionId=null;const f=gridWeath
 function updateBookmarkCount(){$('saved-count').textContent=bookmarks.length?'('+bookmarks.length+')':''}
 function bookmarkCurrent(regionId=null,center=null){if(!state.origin){notice('Choose a starting location before bookmarking a trip.',true);return}const b=makeBookmark(state,regionId,center),next=[b,...bookmarks.filter(x=>x.id!==b.id)].slice(0,100);try{localStorage.setItem('good-outside-bookmarks-v1',JSON.stringify(next));bookmarks=next;updateBookmarkCount();$('bookmark-status').textContent='Trip bookmarked in this browser.';if($('bookmarks-dialog').open)renderBookmarks();if($('save-area'))$('save-area').textContent='♥ Bookmarked';if($('save-sample'))$('save-sample').textContent='♥ Bookmarked'}catch{notice('This browser could not save the bookmark. Browser storage may be unavailable.',true)}}
 function renderBookmarks(){updateBookmarkCount();$('save-search').disabled=!state.origin;$('bookmark-list').innerHTML=bookmarks.length?bookmarks.map((b,i)=>{const r=catalog.find(r=>r.id===b.regionId);return '<div class="bookmark-entry"><button class="bookmark-open" data-bookmark="'+i+'"><strong>'+esc(r?.name||(b.center?'10-mile map area':b.trip.origin.name))+'</strong><p class="meta">'+esc(b.trip.activity)+' · '+fmtDate(b.trip.start)+' · '+b.trip.days+' '+(b.trip.days===1?'day':'days')+'<br>From '+esc(b.trip.origin.name)+' · '+(b.trip.camping==='none'?'No camping':b.trip.camping==='car'?'Car camping':'Backcountry camping')+'</p></button><button class="bookmark-remove" data-remove="'+i+'">Remove</button></div>'}).join(''):'<p class="empty">No saved trips yet. Bookmark a region, a map area, or your current search.</p>';
- for(const button of $('bookmark-list').querySelectorAll('[data-bookmark]'))button.onclick=async()=>{const b=bookmarks[+button.dataset.bookmark];state={...state,...b.trip,origin:{...b.trip.origin}};sync();save();$('bookmarks-dialog').close();if(!await load(true))return;if(b.center)openGrid(b.center,true);else if(b.regionId){if(catalog.some(r=>r.id===b.regionId))showDetail(b.regionId);else notice('That region is not near this starting point any more.',true)}};
+ for(const button of $('bookmark-list').querySelectorAll('[data-bookmark]'))button.onclick=async()=>{const b=bookmarks[+button.dataset.bookmark];state={...state,...b.trip,origin:{...b.trip.origin}};sync();save();$('bookmarks-dialog').close();await applySettings('search');if(b.center){map?.setView(b.center,10,{animate:false})}else if(b.regionId){if(catalog.some(r=>r.id===b.regionId))showDetail(b.regionId);else notice('That region is not near this starting point any more.',true)}};
  for(const button of $('bookmark-list').querySelectorAll('[data-remove]'))button.onclick=()=>{const next=bookmarks.filter((_,i)=>i!==+button.dataset.remove);try{localStorage.setItem('good-outside-bookmarks-v1',JSON.stringify(next));bookmarks=next;renderBookmarks()}catch{$('bookmark-status').textContent='Could not remove this bookmark from browser storage.'}};
 }
 $('saved-trips').onclick=()=>{$('bookmark-status').textContent='';renderBookmarks();$('bookmarks-dialog').showModal()};$('close-bookmarks').onclick=()=>$('bookmarks-dialog').close();$('save-search').onclick=()=>bookmarkCurrent(null,gridMode?gridCenter:null);
@@ -304,7 +323,7 @@ async function surfForecasts(points){
 }
 async function loadCoast(force=false,retry=false){
  const startBefore=state.start;
- exitGrid(false);++surface.rev;basemap?.setWeather(null);basemap?.setCoast([]);const rev=++revision,origin={...state.origin};regions=[];catalog=[];busy=true;weather={};surf={};routes={};driveInfo={};weatherAt=null;knownFor(origin);markStale(false);render();
+ exitGrid(false);++surface.rev;basemap?.setWeather(null);basemap?.setCoast([]);const rev=++revision,origin={...state.origin};regions=[];catalog=[];busy=true;weather={};surf={};routes={};driveInfo={};weatherAt=null;knownFor(origin);areasStale=false;markStale(viewNeedsLoad());render();
  let rows;try{rows=await loadCoastRows()}catch{if(rev!==revision)return false;busy=false;render();notice('Coastal data could not load. Refresh to retry.',true);return false}
  if(rev!==revision)return false;
  // The map colours every point; the list keeps the nearest point for each town name.
@@ -347,8 +366,12 @@ async function loadSurface(force=false){
  // Points far out at sea are left out: the surface is clipped to land, and each point costs a request.
  const size=canvasSize(grid.bounds,128),points=pointsNearLand(grid,await basemap?.landMask(grid.bounds,size.width,size.height),size.width,size.height);if(rev!==surface.rev)return;surface.points=points.length;
  $('weather-key').hidden=false;if(!surface.weather)$('weather-key-status').textContent='Loading the weather map…';
- try{const data=await mapClient.weather(points,force);if(rev!==surface.rev)return;surface.weather=data;drawSurface()}
- catch(error){if(rev!==surface.rev)return;$('weather-key-status').textContent=liveDataMessage(error)||'Weather map unavailable. Tap ↻ to retry.'}
+ // In pieces of up to 50 points: each answer stays small, and one failed piece leaves the rest drawn.
+ const pieces=[];for(let i=0;i<points.length;i+=50)pieces.push(points.slice(i,i+50));
+ const results=await Promise.allSettled(pieces.map(p=>mapClient.weather(p,force)));if(rev!==surface.rev)return;
+ const data=Object.assign({},...results.filter(r=>r.status==='fulfilled').map(r=>r.value)),failed=results.find(r=>r.status==='rejected');
+ if(!Object.keys(data).length){$('weather-key-status').textContent=liveDataMessage(failed?.reason)||'Weather map unavailable. Tap ↻ to retry.';return}
+ surface.weather=data;surface.failure=failed?(liveDataMessage(failed.reason)||'Some of the map could not load.'):null;drawSurface()
 }
 function drawSurface(){
  if(surfing()){basemap?.setWeather(null);return drawCoast()}
@@ -358,7 +381,7 @@ function drawSurface(){
  const {width,height}=canvasSize(grid.bounds),canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
  const ctx=canvas.getContext('2d'),img=ctx.createImageData(width,height);paintGradient(img.data,width,height,values,grid.n,grid.bounds,0.5);ctx.putImageData(img,0,0);
  basemap.setWeather(canvas,grid.bounds);$('weather-key').hidden=false;
- $('weather-key-status').textContent=state.activity+' · '+tripDateLabel()+(state.days>1?' · '+state.days+' days':'')+' · '+ranked+'/'+(surface.points||values.length)+' land samples ranked';
+ $('weather-key-status').textContent=state.activity+' · '+tripDateLabel()+(state.days>1?' · '+state.days+' days':'')+' · '+ranked+'/'+(surface.points||values.length)+' land samples ranked'+(surface.failure?'. '+surface.failure:'');
 }
 // Where an area is: a small map of its surroundings at the top of its details, with the nearest towns
 // labelled, and a line placing it from the starting point and those towns. One map is reused.
@@ -410,6 +433,6 @@ function loadTileIndex(){return tileIndex||(tileIndex=fetch('data/catalog-index.
 async function ensureTiles(origin){if(!origin)return;const idx=await loadTileIndex();await Promise.all(tilesAround(origin).filter(k=>idx.tiles?.[k]&&!tileCache.has(k)).map(k=>fetch('data/catalog/'+k+'.json').then(r=>r.ok?r.json():null).then(t=>{if(t)tileCache.set(k,t)}).catch(()=>{})))}
 
 // Start once every declaration above exists.
-sync();initMap();render();updateBookmarkCount();if(state.origin&&bridgeOk)load();else if(state.origin){regions=catalog=nearby(state.origin,state.activity);render();fitMap();notice('Tap ↻ to check live weather and drive times from '+state.origin.name+'.');ensureTiles(state.origin).then(()=>{if(!busy&&!Object.keys(weather).length&&!surfing()){regions=catalog=nearby(state.origin,state.activity);render()}})}else fitMap();
+// Opening the page loads nothing: it shows the saved starting point's areas, and ↻ loads their data.
+sync();initMap();render();updateBookmarkCount();if(state.origin)mcpReady.then(()=>applySettings('open'));else fitMap();
 // Shows forecasts saved by an earlier search; never fetches.
-mcpReady.then(()=>{if(remoteMode()&&state.origin&&!busy&&!Object.keys(weather).length)load()});
