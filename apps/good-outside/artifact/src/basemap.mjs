@@ -132,6 +132,9 @@ export function createBasemap(L,topojson,map,{onError,obstacles=()=>[],extraLabe
  Promise.all([getJSON('data/cities-labels.json'),getJSON('data/park-labels.json'),getJSON('data/relief.json'),getJSON('data/road-labels.json')]).then(([c,p,r,rl])=>{cities=c;parkLabels=p;relief=r;roadLabels=rl;sync()}).catch(()=>{});
  getJSON('data/hillshade-index.json').then(i=>{hillshadeIndex=i;syncHillshade()}).catch(()=>{});
  return {setWeather(canvas,bounds){weather=canvas?{canvas,bounds}:null;applyWeather()},
+  // Land under `bounds` as RGBA pixels (opaque on land). Always from the 1:50m countries, so the same
+  // place gives the same mask; null if they cannot load.
+  async landMask(bounds,width,height){let shape;try{const t=await fetchOnce('data/countries-50m.json');shape=shapes.coarse||(shapes.coarse=topojson.feature(t,t.objects.countries))}catch{return null}const c=document.createElement('canvas');c.width=width;c.height=height;const ctx=c.getContext('2d');ctx.fillStyle='#000';ctx.fillRect(0,0,width,height);clipToLand(ctx,width,height,bounds,shape);return ctx.getImageData(0,0,width,height).data},
   setCoast(lines){coastLayer.clearLayers();for(const l of lines)L.polyline(l.latlngs,{renderer:above,interactive:false,color:l.color,weight:7,opacity:0.85,lineCap:'round',lineJoin:'round'}).addTo(coastLayer)}};
 }
 

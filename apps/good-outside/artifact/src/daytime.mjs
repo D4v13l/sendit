@@ -6,6 +6,13 @@ export const HOURLY_DAY_FIELDS=['temperature_2m','precipitation','precipitation_
 // Open-Meteo stamps instantaneous values (temperature) at the hour, and accumulations or maxima
 // (precipitation, probability, gusts, snowfall) at the end of the hour they cover. So 8 am–6 pm is
 // temperatures at 08:00–18:00 and accumulations stamped 09:00–18:00.
+// Whole-day values rebuilt from hourly ones, for answers fetched without a daily block (the self-hosted
+// map's, which saves Open-Meteo's per-variable cost). Accumulations use the 23 hours stamped 01:00–23:00.
+export function fullDays(forecast){
+ const h=forecast?.hourly;if(forecast?.daily||!Array.isArray(h?.time))return forecast;
+ const {window,...days}=windowed({...forecast,daily:{time:[...new Set(h.time.map(t=>t.slice(0,10)))]}},0,23);
+ return days;
+}
 export function windowed(forecast,from=DAY_FROM,to=DAY_TO){
  const d=forecast?.daily,h=forecast?.hourly;if(!d?.time||!h?.time)return forecast;
  const index=new Map(h.time.map((t,i)=>[t,i])),pad=n=>String(n).padStart(2,'0');
