@@ -6,7 +6,10 @@ export async function loadPlaces(path='data/cities-search.json'){
  if(!index)index=fetch(path).then(r=>{if(!r.ok)throw Error('Place list unavailable');return r.json()}).then(rows=>rows.map(r=>({row:r,key:fold(r[0])})));
  return index.catch(e=>{index=null;throw e});
 }
-// Alphabetic admin codes (US states, Canadian provinces) are readable; numeric GeoNames codes are not.
+// GeoNames numbers Canada's provinces and territories; people know them by postal abbreviation.
+export const PROVINCES={'01':'AB','02':'BC','03':'MB','04':'NB','05':'NL','07':'NS','08':'ON','09':'PE','10':'QC','11':'SK','12':'YT','13':'NT','14':'NU'};
+export const readableAdmin=(country,code)=>country==='CA'&&PROVINCES[code]||code;
+// Alphabetic admin codes (US states, Canadian provinces) are readable; other numeric GeoNames codes are not.
 export const placeLabel=r=>[r[0],/^[A-Z]{2,3}$/.test(r[2])?r[2]:'',r[1]].filter(Boolean).join(', ');
 // "boulder co" matches Boulder in Colorado; "boulder, us" narrows by country.
 export function searchPlaces(entries,query,limit=6){

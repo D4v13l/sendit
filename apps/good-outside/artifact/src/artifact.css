@@ -32,3 +32,4 @@
 .web-only{display:none}:root[data-host=web] .web-only{display:revert}:root[data-host=web] .claude-only{display:none}
 #refresh.needs-refresh{color:#fff;background:var(--yellow);border-color:var(--yellow);border-radius:50%;box-shadow:0 0 0 4px #a2760b33}
 @media (prefers-reduced-motion:no-preference){#refresh.needs-refresh{animation:refresh-pulse 1.8s ease-in-out 3}}@keyframes refresh-pulse{50%{box-shadow:0 0 0 8px #a2760b22}}
+.wet-note{display:inline-block;margin-left:6px;font-size:12px;color:#2f5f7a;background:#e3eef3;border-radius:999px;padding:1px 8px;vertical-align:middle}
