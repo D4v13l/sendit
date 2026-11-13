@@ -50,3 +50,47 @@ export function freezingRange(forecast,date,from=0,to=23){
 }
 // Snow usually reaches about 300 m (1,000 ft) below the freezing level.
 export const SNOW_BELOW_FREEZING_M=300;
+
+// Skiing: the snow surface the days before leave behind, at the forecast point (an area's mapped
+// point, usually near the base). From the 72 hours before the first morning: new snow; rain (hours
+// above +1 °C with precipitation); melt–freeze (a day above +3 °C and below −2 °C); no freeze at all.
+export const SKI_PAST_DAYS=3,FRESH_CM=5,RAIN_ON_SNOW_MM=5,THIN_CM=10;
+const isSki=activity=>activity==='Skiing'||activity==='Backcountry skiing';
+export const pastDaysFor=activity=>isSki(activity)?SKI_PAST_DAYS:activity==='Climbing'?PAST_DAYS:0;
+// Open-Meteo reports snowfall in cm at about 7 cm per 10 mm of water.
+const CM_PER_MM=0.7;
+export function snowBefore(forecast,date,startHour=8,hours=72){
+ const h=forecast?.hourly,d=forecast?.daily,days=[shiftDate(date,-3),shiftDate(date,-2),shiftDate(date,-1)];
+ const daily=f=>days.map(k=>d?.[f]?.[d.time.indexOf(k)]);
+ let newCm=null,rainMm=null,basis=null;
+ if(Array.isArray(h?.time)&&Array.isArray(h?.snowfall)&&Array.isArray(h?.precipitation)&&Array.isArray(h?.temperature_2m)){
+  const index=new Map(h.time.map((t,i)=>[t,i])),end=Date.parse(`${date}T${pad(startHour)}:00:00Z`);let snow=0,rain=0,complete=true;
+  for(let k=0;k<hours&&complete;k++){const i=index.get(new Date(end-k*3600e3).toISOString().slice(0,16)),s=h.snowfall[i],p=h.precipitation[i],t=h.temperature_2m[i];
+   if(![s,p,t].every(Number.isFinite)){complete=false;break}snow+=s;if(t>1)rain+=p}
+  if(complete){newCm=snow;rainMm=rain;basis='hourly'}
+ }
+ if(newCm==null){const s=daily('snowfall_sum'),p=daily('precipitation_sum');if(s.every(Number.isFinite)&&p.every(Number.isFinite)){newCm=s.reduce((a,b)=>a+b,0);rainMm=p.reduce((a,v,i)=>a+Math.max(0,v-s[i]/CM_PER_MM),0);basis='daily'}}
+ if(newCm==null)return null;
+ const hi=daily('temperature_2m_max'),lo=daily('temperature_2m_min'),temps=hi.every(Number.isFinite)&&lo.every(Number.isFinite);
+ const depth=h?.snow_depth?.[h?.time?.indexOf(`${date}T${pad(startHour)}:00`)];
+ const week=Array.from({length:7},(_,i)=>d?.snowfall_sum?.[d.time.indexOf(shiftDate(date,-7+i))]);
+ return {newCm,rainMm,basis,meltFreeze:temps&&hi.some((x,i)=>x>=3&&lo[i]<=-2),noFreeze:temps&&lo.every(x=>x>0),
+  depthCm:Number.isFinite(depth)?depth*100:null,weekCm:week.every(Number.isFinite)?week.reduce((a,b)=>a+b,0):null};
+}
+
+const cmText=cm=>(cm<10?cm.toFixed(1):String(Math.round(cm)))+' cm';
+// A ski assessment adjusted for the snow surface; adds `snow` when the days before are known. New
+// snow of FRESH_CM or more covers a crust, so the surface rules only apply without it. Model snow
+// depth is coarse (one value across a whole mountain), so it only caps a rating at Passable.
+export function skiConditions(assessment,snow){
+ if(!snow||!assessment||assessment.level==='unknown')return assessment;
+ const fresh=snow.newCm>=FRESH_CM,notes=[];let cap=false;
+ if(snow.newCm>=1)notes.push(`${cmText(snow.newCm)} of new snow in the 72 hours before`);
+ if(!fresh&&snow.rainMm>=RAIN_ON_SNOW_MM){cap=true;notes.push(`${snow.rainMm.toFixed(snow.rainMm<10?1:0)} mm of rain in the 72 hours before: expect crust or wet snow`)}
+ else if(!fresh&&snow.meltFreeze){cap=true;notes.push('melt–freeze in the days before: firm or icy early, softening later')}
+ else if(!fresh&&snow.noFreeze){cap=true;notes.push('no overnight freeze in the days before: soft, wet snow')}
+ if(!fresh&&snow.depthCm!=null&&snow.depthCm<THIN_CM){cap=true;notes.push(`little snow on the ground in the weather model (${cmText(snow.depthCm)})`)}
+ const level=cap&&assessment.level==='excellent'?'passable':assessment.level;
+ const base=assessment.reason===DRY_REASON?'':assessment.reason;
+ return {...assessment,level,label:level==='passable'?'Passable':assessment.label,snow,reason:[base,...notes].filter(Boolean).join('; ')||assessment.reason};
+}
