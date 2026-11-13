@@ -467,3 +467,23 @@ test('Canadian places read and search by province abbreviation',()=>{
  assert.deepEqual(searchPlaces(entries,'vancouver bc').map(placeLabel),['Vancouver, BC, CA']);
  assert.deepEqual(searchPlaces(entries,'vancouver').map(placeLabel),['Vancouver, BC, CA','Vancouver, WA, US']);
 });
+
+import {pointsNearLand} from '../src/gradient.mjs';
+import {fullDays} from '../src/daytime.mjs';
+test('map points far out at sea are left out',()=>{
+ const grid=gradientGrid({lat:48.4,lon:-123.4},{n:16}),w=128,h=128,mask=new Uint8ClampedArray(w*h*4);
+ // Land only in the eastern half of the box.
+ for(let y=0;y<h;y++)for(let x=64;x<w;x++)mask[(y*w+x)*4+3]=255;
+ const kept=pointsNearLand(grid,mask,w,h);
+ assert.ok(kept.length<grid.points.length&&kept.length>=128,kept.length);
+ assert.ok(kept.every(p=>p.col>=6),'only columns on or within a step of land');
+ assert.equal(pointsNearLand(grid,null,w,h).length,256,'no mask keeps every point');
+});
+
+test('whole days are rebuilt from hourly values when the answer has no daily block',()=>{
+ const time=[],t=[],p=[],pp=[],g=[],s=[];for(const d of ['2026-11-14','2026-11-15'])for(let hr=0;hr<24;hr++){time.push(`${d}T${String(hr).padStart(2,'0')}:00`);t.push(hr);p.push(hr===12?2:0);pp.push(hr);g.push(10+hr);s.push(0)}
+ const f=fullDays({hourly:{time,temperature_2m:t,precipitation:p,precipitation_probability:pp,wind_gusts_10m:g,snowfall:s}});
+ assert.deepEqual(f.daily.time,['2026-11-14','2026-11-15']);assert.deepEqual(f.daily.temperature_2m_max,[23,23]);assert.deepEqual(f.daily.precipitation_sum,[2,2]);
+ assert.equal(f.window,undefined);
+ const withDaily={daily:{time:['x']},hourly:{time}};assert.equal(fullDays(withDaily),withDaily);
+});

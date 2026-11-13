@@ -13,6 +13,20 @@ export function gradientGrid(origin,{halfKm=300,n=8}={}){
  return {bounds,points,n};
 }
 
+// Grid points worth a forecast: those with land within about one grid step, so the land-clipped surface
+// still has neighbours to blend between at the coast. `mask` is RGBA pixels (opaque on land) of
+// width × height over the grid's bounds, in Web Mercator; without one every point is kept.
+export function pointsNearLand(grid,mask,width,height){
+ if(!mask)return grid.points;
+ const {bounds:b,n}=grid,yN=mercY(b.north),yS=mercY(b.south),rx=Math.ceil(width/(n-1)),ry=Math.ceil(height/(n-1));
+ const land=(x,y)=>x>=0&&y>=0&&x<width&&y<height&&mask[(y*width+x)*4+3]>0;
+ return grid.points.filter(p=>{
+  const x=Math.round((p.point[1]-b.west)/(b.east-b.west)*width),y=Math.round((yN-mercY(p.point[0]))/(yN-yS)*height);
+  for(let dy=-ry;dy<=ry;dy++)for(let dx=-rx;dx<=rx;dx++)if(land(x+dx,y+dy))return true;
+  return false;
+ });
+}
+
 // Bilinear interpolation at grid coordinates (fx across columns, fy down rows). Unknown corners drop
 // out and the known ones are reweighted; with no known corner the answer is null.
 export function sampleGrid(values,n,fx,fy){
