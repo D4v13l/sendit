@@ -15,24 +15,26 @@ const inClaude=!!window.claude?.use;document.documentElement.dataset.host=inClau
 // Answers are kept in the browser's Cache Storage, so reloading the page or searching the same place
 // again costs no requests against Open-Meteo's free limits (600 a minute, 10,000 a day per address):
 // forecasts for 15 minutes, the map's for 30, drive distances and place lookups for a day.
-const KEEP_MS={areas:15*6e4,map:30*6e4,other:24*36e5},CACHE='good-outside-1',FIRST_BYTE_MS=8000,BODY_MS=60000;
+const KEEP_MS={areas:15*6e4,map:30*6e4,other:24*36e5},CACHE='good-outside-1',FIRST_BYTE_MS=[10000,20000],BODY_MS=60000;
 const keepFor=(url,purpose)=>{const h=new URL(url).hostname;return h==='api.open-meteo.com'||h==='marine-api.open-meteo.com'?KEEP_MS[purpose==='map'?'map':'areas']:KEEP_MS.other};
 const fetchedAt=(data,at)=>{for(const f of Array.isArray(data)?data:[data])if(f&&typeof f==='object')f.fetchedAt=at;return data};
 async function directFetch(url,timeout,purpose){
  let store=null;try{store=await caches.open(CACHE)}catch{}
  if(store){try{const hit=await store.match(url),at=Number(hit?.headers.get('x-fetched-at'));if(hit&&Date.now()-at<keepFor(url,purpose))return fetchedAt(await hit.json(),at)}catch{}}
- // Open-Meteo answers in 0.2–4 seconds but now and then a request stalls with no answer at all (seen
- // live, about one round in three). So a request that hasn't started answering within FIRST_BYTE_MS is
- // dropped and sent again; one that has started gets BODY_MS to download, since the map's answers
- // run to a megabyte on slow mobile connections. Stalls, dropped connections and server errors get up
- // to two more tries, after 1 and 2 seconds.
- const host=new URL(url).hostname;let response,data;
+ // Open-Meteo answers in 0.2–4 seconds but now and then a request stalls or the connection drops (seen
+ // live, about one round in three). A request that hasn't started answering within FIRST_BYTE_MS[0] is
+ // dropped and sent once more, with FIRST_BYTE_MS[1] to answer; one that has started gets BODY_MS to
+ // download. Only one retry: every try counts against the free allowance. Each try is logged for the
+ // Details view.
+ const u=new URL(url),host=u.hostname,points=(u.searchParams.get('latitude')||'').split(',').filter(Boolean).length||undefined;let response,data;
  for(let attempt=0;;attempt++){
-  const controller=new AbortController();let timer=setTimeout(()=>controller.abort(),Math.max(FIRST_BYTE_MS,timeout||0));
-  try{response=await fetch(url,{signal:controller.signal});clearTimeout(timer);timer=setTimeout(()=>controller.abort(),BODY_MS);data=await response.json().catch(()=>null)}
-  catch(e){if(attempt<2){await new Promise(r=>setTimeout(r,1000*(attempt+1)));continue}e.host=host;throw e}
+  const controller=new AbortController(),at=Date.now();let timer=setTimeout(()=>controller.abort(),Math.max(FIRST_BYTE_MS[attempt],timeout||0));
+  const log=(extra)=>diag({kind:'try',host,points,try:attempt+1,ms:Date.now()-at,...extra});
+  try{response=null;response=await fetch(url,{signal:controller.signal});clearTimeout(timer);timer=setTimeout(()=>controller.abort(),BODY_MS);data=await response.json().catch(()=>null);
+   log({status:response.status,left:response.headers.get('x-ratelimit-remaining')??undefined,window:response.headers.get('x-ratelimit-window')??undefined})}
+  catch(e){log({error:e.name+(response?' (while downloading)':' (no answer)')});if(attempt<1){await new Promise(r=>setTimeout(r,1500));continue}e.host=host;throw e}
   finally{clearTimeout(timer)}
-  if(response.status>=500&&attempt<2){await new Promise(r=>setTimeout(r,1000*(attempt+1)));continue}
+  if(response.status>=500&&attempt<1){await new Promise(r=>setTimeout(r,1500));continue}
   break;
  }
  // Open-Meteo explains refusals in `reason`, e.g. "Minutely API request limit exceeded. Please try again in one minute."
@@ -67,13 +69,14 @@ const pastDays=()=>remoteMode()?0:pastDaysFor(state.activity);
 const skiing=()=>state.activity==='Skiing'||state.activity==='Backcountry skiing';
 // Shapes the planner's forecast requests. In Claude, pages must stay small for the built-in browser, so
 // requests cover only the trip's dates (and the days before, for climbing and skiing) and the fields
-// the current settings use. A self-hosted copy loads the week before (the map's grid: three days) plus
-// the whole 16-day forecast with every field, so changing activity, dates or camping never needs new
-// data. The map's grid (`purpose` 'map') leaves out the freezing level, which only the detail sheet shows.
+// the current settings use. A self-hosted copy loads the three days before plus the whole 16-day
+// forecast with every field, so changing activity, dates or camping never needs new data. The map's
+// grid (`purpose` 'map') is the costly request, so there it asks only for the trip-day fields: no days
+// before, freezing level or snow depth. The map rates trip-day weather; the list adds the days before.
 function trimForecast(url,purpose='areas'){
  const u=new URL(url);if(u.hostname!=='api.open-meteo.com'||!u.searchParams.has('forecast_days'))return url;
  const hourly=new Set(needsNights()?['temperature_2m']:HOURLY_DAY_FIELDS);
- if(!inClaude){HOURLY_DAY_FIELDS.forEach(f=>hourly.add(f));hourly.add('snow_depth');u.searchParams.set('past_days',purpose==='map'?String(SKI_PAST_DAYS):'7');u.searchParams.set('forecast_days','16');if(purpose==='map')u.searchParams.delete('daily')}
+ if(!inClaude){HOURLY_DAY_FIELDS.forEach(f=>hourly.add(f));u.searchParams.set('forecast_days','16');if(purpose==='map'){u.searchParams.delete('daily');u.searchParams.delete('past_days')}else{hourly.add('snow_depth');u.searchParams.set('past_days',String(SKI_PAST_DAYS))}}
  else{const trip=dates(state.start,state.days);u.searchParams.delete('forecast_days');u.searchParams.set('start_date',pastDays()?shiftDate(trip[0],-pastDays()):trip[0]);u.searchParams.set('end_date',trip.at(-1));if(skiing())hourly.add('snow_depth')}
  if(purpose!=='map')hourly.add('freezing_level_height');
  u.searchParams.set('hourly',[...hourly].join(','));return u.toString();
@@ -88,7 +91,10 @@ function ratingNote(){if(needsNights())return 'Full days and nights rated.';cons
 // Forecasts fetched without hourly data carry an empty hourly block, which evaluate() accepts for day trips.
 const withHourly=data=>{for(const f of Array.isArray(data)?data:[data])if(f?.daily&&!f.hourly)f.hourly={time:[],temperature_2m:[]};return data};
 // A forecast fetched for earlier dates may not reach a newly chosen trip.
-const covers=f=>!f?.daily?.time||(dates(state.start,state.days).every(d=>f.daily.time.includes(d))&&(!pastDays()||f.daily.time.includes(shiftDate(state.start,-pastDays())))&&(needsNights()?f.hourly?.temperature_2m?.length>0:remoteMode()||f.hourly?.precipitation?.length>0));
+const coversTrip=f=>!f?.daily?.time||(dates(state.start,state.days).every(d=>f.daily.time.includes(d))&&(needsNights()?f.hourly?.temperature_2m?.length>0:remoteMode()||f.hourly?.precipitation?.length>0));
+const covers=f=>coversTrip(f)&&(!f?.daily?.time||!pastDays()||f.daily.time.includes(shiftDate(state.start,-pastDays())));
+// The self-hosted map's grid is fetched without the days before.
+const mapCovers=f=>inClaude?covers(f):coversTrip(f);
 const liveData=async(url,timeout,purpose)=>{await mcpReady;
  if(bridge&&!hostMissing){try{let data=withHourly(await bridge(trimForecast(url,purpose),timeout,purpose));if(!inClaude&&purpose==='map')data=Array.isArray(data)?data.map(fullDays):fullDays(data);if(!bridgeOk){bridgeOk=true;try{localStorage.setItem('good-outside-bridge-ok','1')}catch{}}return data}
   catch(error){if(!remote||!['server_not_connected','capability_disabled','not_granted'].includes(error?.code))throw error;hostMissing=true;diag({kind:'switch',to:'remote',code:error.code})}}
@@ -99,12 +105,13 @@ const transport=async(url,timeout,purpose)=>{const u=new URL(url),at=Date.now(),
  catch(error){if(error?.code!=='desktop_only')diag({...entry,mode:remoteMode()?'remote':'browser',ms:Date.now()-at,code:clip(error?.code||error?.name,40),message:clip(error?.message)});throw error}};
 const client=createRegionClient(transport),mapClient=createRegionClient((url,timeout)=>transport(url,timeout,'map'));
 // The weather map's grid over 600 km: 8×8 (about 86 km apart) in Claude, where every page must stay
-// small; 16×16 (about 40 km) in a self-hosted copy.
-const mapGrid=origin=>gradientGrid(origin,{n:inClaude?8:16});
+// small; 12×12 (about 55 km) in a self-hosted copy, whose free Open-Meteo allowance (600 points a
+// minute) a 16×16 grid used up in under two loads.
+const mapGrid=origin=>gradientGrid(origin,{n:inClaude?8:12});
 function liveDataMessage(error){const code=error?.code;
  // A self-hosted copy talks to the services directly; their failures are plain HTTP or network errors.
  if(!inClaude&&code==='rate_limited')return 'Open-Meteo’s free limit for your connection was reached: '+error.message+' Pages already loaded still work.';
- if(!inClaude&&['TypeError','AbortError'].includes(error?.name))return `Could not reach ${error.host||'the forecast or routing service'} (${error.name==='AbortError'?'no answer after three tries':error.message||error.name}). Check your connection, then tap ↻.`;
+ if(!inClaude&&['TypeError','AbortError'].includes(error?.name))return `Could not reach ${error.host||'the forecast or routing service'} (${error.name==='AbortError'?'no answer after two tries':error.message||error.name}). Check your connection, then tap ↻.`;
  if(['stale','too_large','unreadable'].includes(code))return error.message+' Tap ↻ to try again.';
  if(['server_not_connected','capability_disabled','not_granted','capability_removed'].includes(code))return 'Live forecasts load only for this page’s owner, signed in to Claude. Everything else works here.';
  if(code==='search_needed')return 'Forecasts are fetched only when you search a starting location. Search '+(state.origin?.name||'one')+' to load them.';
@@ -121,7 +128,9 @@ let gridMode=false,gridCenter=null,gridPoints=[],gridWeather={},gridGroup=null,g
 
 const fmtDate=d=>new Date(d+'T12:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'});const temp=x=>Math.round(x*9/5+32)+'°F';const drive=s=>{let m=Math.max(1,Math.round(s/60));return ((m>=60?Math.floor(m/60)+'h ':'')+(m%60?m%60+'m':'')).trim()};
 const save=()=>{try{localStorage.setItem('good-outside-v1',JSON.stringify(state))}catch{}};
-function notice(text,error=false){$('notice').textContent=text;$('notice').classList.toggle('error',error);if(error||/unknown|unavailable|not allowed|could not|still being/i.test(text))diag({kind:'notice',text:clip(text,300)})}
+function notice(text,error=false){$('notice').textContent=text;$('notice').classList.toggle('error',error);if(error||/unknown|unavailable|not allowed|could not|still being/i.test(text)){diag({kind:'notice',text:clip(text,300)});withDetails($('notice'))}}
+// A "Details" button after a load error opens this page's request log, to copy and send on.
+function withDetails(el){const b=document.createElement('button');b.type='button';b.className='text-button';b.textContent='Details';b.onclick=()=>{$('diag-log').textContent=diagLog.slice(-40).map(e=>JSON.stringify(e)).join('\n')||'Nothing logged yet.';$('diag-dialog').showModal()};el.append(' ',b)}
 function sync(){if(state.dateMode!=='custom')state.start=nearTermStart(state.dateMode,state.origin?.timezone); $('activity').value=state.activity;$('origin').value=state.origin?.name||'';$('start').min=destinationToday(state.origin?.timezone);$('start').max=dates(destinationToday(state.origin?.timezone),14)[13];$('start').value=state.start;$('start').dataset.dateMode=state.dateMode;$('duration').value=state.days;$('camping').value=state.camping;$('trip').innerHTML=`${tripDateLabel()} · ${state.days} ${state.days===1?'day':'days'}${state.camping==='none'?'':state.camping==='car'?' · Car camping':' · Backcountry'} <span>⌄</span>`;}
 function candidates(){return regions.filter(r=>r.activities.includes(state.activity)&&!(state.camping!=='none'&&r.noCamping)&&!(state.camping==='car'&&r.noCarCamping)&&!(state.camping==='backcountry'&&r.noBackcountry))}
 function assessment(r){return r.coast?surfRating(r):rate(weather[r.id])}
@@ -202,7 +211,7 @@ async function applySettings(why='settings'){
  // Viewers who cannot load live data at all get no prompt to.
  const canFetch=!!bridge||!!remote;
  if(coast)drawSurface();
- else if(surface.weather&&Object.values(surface.weather).every(covers))drawSurface();
+ else if(surface.weather&&Object.values(surface.weather).every(mapCovers))drawSurface();
  else{basemap?.setWeather(null);$('weather-key').hidden=remoteMode()||!canFetch;if(!$('weather-key').hidden){stale=true;$('weather-key-status').textContent='Tap ↻ to colour the map for these settings.'}}
  if(gridMode&&!coast&&!Object.values(gridWeather).every(covers)){stale=true;$('grid-status').textContent='Tap ↻ to update these samples for these settings.'}else if(gridMode)renderGrid();
  if(regions.some(r=>!driveInfo[r.id]))stale=true;
@@ -223,6 +232,7 @@ $('controls').onsubmit=async e=>{e.preventDefault();const query=$('origin').valu
  if(!results.length){notice('No location found. Try a nearby town.',true);return}
  $('places').innerHTML=results.map((p,i)=>`<button type="button" data-place="${i}">${esc(p.label)}</button>`).join('');$('places').hidden=false;notice('Choose the matching starting location.');$('places').querySelectorAll('button').forEach(b=>b.onclick=()=>chooseOrigin(results[+b.dataset.place].origin))};
 $('activity').onchange=()=>{state.activity=$('activity').value;save();applySettings()};$('trip').onclick=()=>{sync();$('settings').showModal()};$('settings-form').onsubmit=e=>{if(e.submitter?.value!=='apply')return;if(surfing()&&$('start').value>=$('start').min&&$('start').value<=$('start').max){state.start=$('start').value;state.dateMode=$('start').dataset.dateMode||'custom';state.days=+$('duration').value;state.camping=$('camping').value;sync();save();applySettings();return}if(!$('start').value||$('start').value<$('start').min||$('start').value>$('start').max){e.preventDefault();$('start').reportValidity();return}state.start=$('start').value;state.dateMode=$('start').dataset.dateMode||'custom';state.days=+$('duration').value;state.camping=$('camping').value;sync();save();applySettings()};
+$('close-diag').onclick=()=>$('diag-dialog').close();$('copy-diag').onclick=async()=>{try{await navigator.clipboard.writeText($('diag-log').textContent);$('copy-diag').textContent='Copied'}catch{getSelection().selectAllChildren($('diag-log'));$('copy-diag').textContent='Selected: copy it'}};
 $('refresh').onclick=async()=>{if(busy)return;if(map&&map.getZoom()>=10&&!surfing()&&!remoteMode()&&state.origin){const c=map.getCenter();return loadGrid([c.lat,c.lng],true)}armRemote();await load(true)};$('about').onclick=()=>$('method').showModal();$('close-method').onclick=()=>$('method').close();$('close-detail').onclick=()=>{detailSampleId=null;$('detail').close()};document.addEventListener('click',e=>{if(!e.target.closest('.origin-wrap'))$('places').hidden=true});
 // The hours a day is rated on: 8 am–6 pm for day trips, the whole day when camping.
 const ratedHours=()=>needsNights()?[0,23]:[DAY_FROM,DAY_TO];
@@ -379,15 +389,15 @@ async function loadSurface(force=false){
  // Points far out at sea are left out: the surface is clipped to land, and each point costs a request.
  const size=canvasSize(grid.bounds,128),points=pointsNearLand(grid,await basemap?.landMask(grid.bounds,size.width,size.height),size.width,size.height);if(rev!==surface.rev)return;surface.points=points.length;
  $('weather-key').hidden=false;if(!surface.weather)$('weather-key-status').textContent='Loading the weather map…';
- // In pieces of up to 50 points, two at a time: each answer stays small, one failed piece leaves the
+ // In pieces of up to 50 points, one at a time: each answer stays small, one failed piece leaves the
  // rest drawn, and the key shows progress.
  const pieces=[];for(let i=0;i<points.length;i+=50)pieces.push(points.slice(i,i+50));
  const results=[];let next=0,done=0;
  const progress=()=>{if(!surface.weather&&rev===surface.rev)$('weather-key-status').textContent=`Loading the weather map… ${done} of ${pieces.length}`};progress();
  const worker=async()=>{while(next<pieces.length){const i=next++;try{results[i]={status:'fulfilled',value:await mapClient.weather(pieces[i],force)}}catch(reason){results[i]={status:'rejected',reason}}done++;progress()}};
- await Promise.all([worker(),worker()]);if(rev!==surface.rev)return;
+ await worker();if(rev!==surface.rev)return;
  const data=Object.assign({},...results.filter(r=>r.status==='fulfilled').map(r=>r.value)),failed=results.find(r=>r.status==='rejected');
- if(!Object.keys(data).length){$('weather-key-status').textContent=liveDataMessage(failed?.reason)||'Weather map unavailable. Tap ↻ to retry.';return}
+ if(!Object.keys(data).length){$('weather-key-status').textContent=liveDataMessage(failed?.reason)||'Weather map unavailable. Tap ↻ to retry.';withDetails($('weather-key-status'));return}
  surface.weather=data;surface.failure=failed?(liveDataMessage(failed.reason)||'Some of the map could not load.'):null;drawSurface()
 }
 function drawSurface(){
