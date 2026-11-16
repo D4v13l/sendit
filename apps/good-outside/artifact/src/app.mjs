@@ -15,22 +15,24 @@ const inClaude=!!window.claude?.use;document.documentElement.dataset.host=inClau
 // Answers are kept in the browser's Cache Storage, so reloading the page or searching the same place
 // again costs no requests against Open-Meteo's free limits (600 a minute, 10,000 a day per address):
 // forecasts for 15 minutes, the map's for 30, drive distances and place lookups for a day.
-const KEEP_MS={areas:15*6e4,map:30*6e4,other:24*36e5},CACHE='good-outside-1';
+const KEEP_MS={areas:15*6e4,map:30*6e4,other:24*36e5},CACHE='good-outside-1',FIRST_BYTE_MS=8000,BODY_MS=60000;
 const keepFor=(url,purpose)=>{const h=new URL(url).hostname;return h==='api.open-meteo.com'||h==='marine-api.open-meteo.com'?KEEP_MS[purpose==='map'?'map':'areas']:KEEP_MS.other};
 const fetchedAt=(data,at)=>{for(const f of Array.isArray(data)?data:[data])if(f&&typeof f==='object')f.fetchedAt=at;return data};
 async function directFetch(url,timeout,purpose){
  let store=null;try{store=await caches.open(CACHE)}catch{}
  if(store){try{const hit=await store.match(url),at=Number(hit?.headers.get('x-fetched-at'));if(hit&&Date.now()-at<keepFor(url,purpose))return fetchedAt(await hit.json(),at)}catch{}}
- // A slow or failed connection, or a server error, gets one more try: a forecast server that is
- // still loading a region's model data (seen near Victoria, BC) can time out once, then answer.
+ // Open-Meteo answers in 0.2–4 seconds but now and then a request stalls with no answer at all (seen
+ // live, about one round in three). So a request that hasn't started answering within FIRST_BYTE_MS is
+ // dropped and sent again; one that has started gets BODY_MS to download, since the map's answers
+ // run to a megabyte on slow mobile connections. Stalls, dropped connections and server errors get up
+ // to two more tries, after 1 and 2 seconds.
  const host=new URL(url).hostname;let response,data;
  for(let attempt=0;;attempt++){
-  // The map's two-week answers run to megabytes, so allow slow mobile connections time.
-  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),Math.max(45000,timeout||0));
-  try{response=await fetch(url,{signal:controller.signal});data=await response.json().catch(()=>null)}
-  catch(e){if(attempt<1){await new Promise(r=>setTimeout(r,1500));continue}e.host=host;throw e}
+  const controller=new AbortController();let timer=setTimeout(()=>controller.abort(),Math.max(FIRST_BYTE_MS,timeout||0));
+  try{response=await fetch(url,{signal:controller.signal});clearTimeout(timer);timer=setTimeout(()=>controller.abort(),BODY_MS);data=await response.json().catch(()=>null)}
+  catch(e){if(attempt<2){await new Promise(r=>setTimeout(r,1000*(attempt+1)));continue}e.host=host;throw e}
   finally{clearTimeout(timer)}
-  if(response.status>=500&&attempt<1){await new Promise(r=>setTimeout(r,1500));continue}
+  if(response.status>=500&&attempt<2){await new Promise(r=>setTimeout(r,1000*(attempt+1)));continue}
   break;
  }
  // Open-Meteo explains refusals in `reason`, e.g. "Minutely API request limit exceeded. Please try again in one minute."
@@ -102,7 +104,7 @@ const mapGrid=origin=>gradientGrid(origin,{n:inClaude?8:16});
 function liveDataMessage(error){const code=error?.code;
  // A self-hosted copy talks to the services directly; their failures are plain HTTP or network errors.
  if(!inClaude&&code==='rate_limited')return 'Open-Meteo’s free limit for your connection was reached: '+error.message+' Pages already loaded still work.';
- if(!inClaude&&['TypeError','AbortError'].includes(error?.name))return `Could not reach ${error.host||'the forecast or routing service'} (${error.name==='AbortError'?'no answer within 45 seconds':error.message||error.name}). Check your connection, then tap ↻.`;
+ if(!inClaude&&['TypeError','AbortError'].includes(error?.name))return `Could not reach ${error.host||'the forecast or routing service'} (${error.name==='AbortError'?'no answer after three tries':error.message||error.name}). Check your connection, then tap ↻.`;
  if(['stale','too_large','unreadable'].includes(code))return error.message+' Tap ↻ to try again.';
  if(['server_not_connected','capability_disabled','not_granted','capability_removed'].includes(code))return 'Live forecasts load only for this page’s owner, signed in to Claude. Everything else works here.';
  if(code==='search_needed')return 'Forecasts are fetched only when you search a starting location. Search '+(state.origin?.name||'one')+' to load them.';
@@ -377,9 +379,13 @@ async function loadSurface(force=false){
  // Points far out at sea are left out: the surface is clipped to land, and each point costs a request.
  const size=canvasSize(grid.bounds,128),points=pointsNearLand(grid,await basemap?.landMask(grid.bounds,size.width,size.height),size.width,size.height);if(rev!==surface.rev)return;surface.points=points.length;
  $('weather-key').hidden=false;if(!surface.weather)$('weather-key-status').textContent='Loading the weather map…';
- // In pieces of up to 50 points: each answer stays small, and one failed piece leaves the rest drawn.
+ // In pieces of up to 50 points, two at a time: each answer stays small, one failed piece leaves the
+ // rest drawn, and the key shows progress.
  const pieces=[];for(let i=0;i<points.length;i+=50)pieces.push(points.slice(i,i+50));
- const results=await Promise.allSettled(pieces.map(p=>mapClient.weather(p,force)));if(rev!==surface.rev)return;
+ const results=[];let next=0,done=0;
+ const progress=()=>{if(!surface.weather&&rev===surface.rev)$('weather-key-status').textContent=`Loading the weather map… ${done} of ${pieces.length}`};progress();
+ const worker=async()=>{while(next<pieces.length){const i=next++;try{results[i]={status:'fulfilled',value:await mapClient.weather(pieces[i],force)}}catch(reason){results[i]={status:'rejected',reason}}done++;progress()}};
+ await Promise.all([worker(),worker()]);if(rev!==surface.rev)return;
  const data=Object.assign({},...results.filter(r=>r.status==='fulfilled').map(r=>r.value)),failed=results.find(r=>r.status==='rejected');
  if(!Object.keys(data).length){$('weather-key-status').textContent=liveDataMessage(failed?.reason)||'Weather map unavailable. Tap ↻ to retry.';return}
  surface.weather=data;surface.failure=failed?(liveDataMessage(failed.reason)||'Some of the map could not load.'):null;drawSurface()
